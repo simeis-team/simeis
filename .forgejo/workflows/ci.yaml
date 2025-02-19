@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  code-check:
+    runs-on: nix
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Calculate lockfile hash
+        id: cargo-lock-hash
+        run: echo "hash=$(md5sum Cargo.lock)" >> $GITHUB_OUTPUT
+
+      - uses: https://code.forgejo.org/actions/cache@v4
+        name: Cache dependencies
+        id: cache-rust
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+            supply-chain/
+          key: ${{ runner.os }}-${{ steps.cargo-lock-hash.outputs.hash }}
+
+      - name: "Check the sanity of the Rust code"
+        run: nix run .#check_rust_code
+
+  todo-check:
+    runs-on: nix
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Check for unadressed TODOs"
+        run: nix run .#check_todos
