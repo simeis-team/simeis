@@ -1,31 +1,35 @@
 use base64::prelude::{Engine, BASE64_STANDARD};
-use ntex::web::types::{Json, Path};
-use ntex::web::{self, HttpRequest, ServiceConfig};
 use rand::RngCore;
 use serde::Deserialize;
 use serde_json::json;
+use std::collections::BTreeMap;
 use std::hash::{DefaultHasher, Hasher};
 use std::ops::Deref;
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
+use crate::api::ApiResult;
 use crate::errors::Errcode;
 use crate::galaxy::SpaceCoord;
-use crate::{build_response, get_player_key, ServerState};
+use crate::ship::{Ship, ShipId};
+use crate::GameState;
 
-const INIT_MONEY: f64 = 10000.0;
+const INIT_MONEY: f64 = 30000.0;
+
+pub type PlayerKey = [u8; 128];
 
 // Game state for a single player
 #[allow(dead_code)] // DEV
 pub struct Player {
-    id: u64,
-    key: String,
+    pub id: u64,
+    key: PlayerKey,
     lost: bool,
 
     pub name: String,
     pub money: f64,
     pub costs: f64,
 
-    station: SpaceCoord,
+    pub station: SpaceCoord,
+    pub ships: BTreeMap<ShipId, Ship>,
 }
 
 impl Player {
@@ -35,10 +39,9 @@ impl Player {
         let mut rng = rand::rng();
         let mut randbytes = [0; 128];
         rng.fill_bytes(&mut randbytes);
-        let key = BASE64_STANDARD.encode(randbytes);
 
         Player {
-            key,
+            key: randbytes,
             id: hasher.finish(),
             lost: false,
 
@@ -47,6 +50,7 @@ impl Player {
 
             name: req.name,
             station,
+            ships: BTreeMap::new(),
         }
     }
 
@@ -67,58 +71,52 @@ impl PartialEq<&Player> for ReqNewPlayer {
     }
 }
 
-#[web::post("/newplayer")]
-async fn new_player(srv: ServerState, req: Json<ReqNewPlayer>) -> impl web::Responder {
+pub fn new_player(srv: GameState, req: ReqNewPlayer) -> ApiResult {
     for (_, player) in srv.players.read().unwrap().iter() {
-        if req.0 == player.read().unwrap().deref() {
-            return Errcode::PlayerAlreadyExists(req.0.name).build_resp();
+        if req == player.read().unwrap().deref() {
+            return Err(Errcode::PlayerAlreadyExists(req.name));
         }
     }
 
     let station = srv.galaxy.init_new_station();
-    let player = Player::new(station, req.0);
-    let resp = build_response(json!({
-        "error": "ok",
+    let player = Player::new(station, req);
+    let resp = json!({
         "playerId": player.id,
-        "key": &player.key,
-    }));
+        "key": &BASE64_STANDARD.encode(player.key),
+    });
+    srv.player_index
+        .write()
+        .unwrap()
+        .insert(player.key, player.id);
     srv.players
         .write()
         .unwrap()
-        .insert(player.id, RwLock::new(player));
-    resp
+        .insert(player.id, Arc::new(RwLock::new(player)));
+    Ok(resp)
 }
 
-#[web::get("/player/{id}")]
-async fn get_player(srv: ServerState, id: Path<u64>, req: HttpRequest) -> impl web::Responder {
-    let Some(key) = get_player_key(&req) else {
-        return Errcode::NoPlayerKey.build_resp();
-    };
-
+pub fn get_player(srv: GameState, id: u64, key: PlayerKey) -> ApiResult {
     let players = srv.players.read().unwrap();
-    let Some(playerlck) = players.get(id.as_ref()) else {
-        return Errcode::PlayerNotFound(*id).build_resp();
+    let Some(playerlck) = players.get(&id) else {
+        return Err(Errcode::PlayerNotFound(id));
     };
 
     let player = playerlck.read().unwrap();
 
     #[allow(clippy::if_same_then_else)] // DEV
     if player.key == key {
-        build_response(json!({
-            "error": "ok",
+        Ok(json!({
             "name": player.name,
             "station": player.station,
             "money": player.money,
+            "ships": serde_json::to_value(
+                player.ships.values().collect::<Vec<&Ship>>()
+            ).unwrap(),
         }))
     } else {
-        build_response(json!({
-            "error": "ok",
+        Ok(json!({
             "name": player.name,
             "station": player.station,
         }))
     }
-}
-
-pub fn configure(srv: &mut ServiceConfig) {
-    srv.service(get_player).service(new_player);
 }

@@ -89,6 +89,12 @@ class Tester:
             assert "error" in data.keys()
             return data
 
+    def create_test_player(self):
+        name = "TestPlayer_" + self.current_test.replace(" ", "_").lower()
+        got = self.assert_ok("/newplayer", method="POST", body={"name": name})
+        self.key = self.assert_got(got, "key", None)
+        self.id = self.assert_got(got, "playerId", None)
+
     def assert_ok(self, endpoint, **kwargs):
         got = self.request(endpoint, **kwargs)
         self.addtrace("Expect this data to be OK")
@@ -121,10 +127,6 @@ class Tester:
             assert data[key] == val
         return data[key]
 
-    def all_tests(self):
-        self.test_ping()
-        self.test_create_player()
-
     @functest
     def test_ping(self):
         got = self.assert_ok("/ping")
@@ -140,17 +142,60 @@ class Tester:
         self.key = self.assert_got(got, "key", None)
         self.id = self.assert_got(got, "playerId", 11070862243173938738)
 
-        got = self.assert_ok("/player/" + str(self.id))
-        self.assert_got(got, "money", 10000)
-
-        got = self.assert_ok("/player/" + str(self.id), key=1234123423)
-        self.assert_got(got, "money", None, negate=True)
-
-        self.assert_ok("/newplayer", method="POST", body={"name": "Testuser2"})
+        pl2 = self.assert_ok("/newplayer", method="POST", body={"name": "Testuser2"})
         self.assert_error("/newplayer",
             method="POST", body={"name": "Testuser2"},
             errtype="PlayerAlreadyExists(\"Testuser2\")"
         )
+        pl2_key = self.assert_got(pl2, "key", None)
+
+        got = self.assert_ok(f"/player/{self.id}")
+        self.assert_got(got, "money", 30000)
+
+        got = self.assert_ok(f"/player/{self.id}", key=pl2["key"])
+        self.assert_got(got, "money", None, negate=True)
+
+    @functest
+    def test_shipyard(self):
+        self.create_test_player()
+
+        got = self.assert_ok(f"/player/{self.id}")
+        beforemoney = self.assert_got(got, "money", 30000)
+
+        got = self.assert_ok("/shipyard/list")
+        shiplist = self.assert_got(got, "ships", None)
+        assert len(shiplist) == 3
+        ships = {}
+        for ship in shiplist:
+            self.assert_got(ship, "id", None)
+            self.assert_got(ship, "modules", [])
+            self.assert_got(ship, "reactor_power", None)
+            self.assert_got(ship, "cargo_capacity", None)
+            self.assert_got(ship, "fuel_tank_capacity", None)
+            self.assert_got(ship, "hull_decay_capacity", None)
+            ships[ship["id"]] = ship
+
+        n = 0
+        while n in ships.keys():
+            n += 1
+        self.assert_error(f"/shipyard/buy/{n}", errtype=f"ShipNotFound({n})")
+
+        sid_cant = [id for id, ship in ships.items() if ship["price"] > beforemoney ][0]
+        self.assert_error(f"/shipyard/buy/{sid_cant}",
+            errtype="NotEnoughMoney(30000.0, {})".format(ships[sid_cant]["price"])
+        )
+
+        sid_can = [id for id, ship in ships.items() if ship["price"] <= beforemoney ][0]
+        self.assert_ok(f"/shipyard/buy/{sid_can}")
+        after = self.assert_ok(f"/player/{self.id}")
+        aftermoney = self.assert_got(after, "money", None)
+        ships = self.assert_got(after, "ships", None)
+        assert len(ships) > 0
+        assert ships[0]["id"] == sid_can
+        assert aftermoney < beforemoney
+
+        # TODO (#22)    Sell ship with given ID
+        # TODO (#22)   Assert ship no longer in possession
 
 if __name__ == "__main__":
     t = Tester(sys.argv[1], sys.argv[2])

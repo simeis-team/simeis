@@ -17,6 +17,7 @@
       runtimeInputs = deps ++ [ python ];
       text = ''
         export CARGO_HOME=$PWD/.cargohome
+        export RUST_LOG="ntex=warn,debug"
         cargo build
         ./target/debug/simeis 1>/tmp/simeis_logs 2>&1 &
         sleep 1

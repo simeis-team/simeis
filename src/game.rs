@@ -1,16 +1,20 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
 
 use crate::galaxy::Galaxy;
-use crate::player::Player;
+use crate::player::{Player, PlayerKey};
 
 const ITER_PERIOD: std::time::Duration = std::time::Duration::from_millis(100);
 
+// TODO (#23) Have a global "inflation" rate for all users, that increases over time
+//     Equipment becomes more and more expansive
+
 #[derive(Clone)]
 pub struct Game {
-    pub players: Arc<RwLock<BTreeMap<u64, RwLock<Player>>>>,
+    pub players: Arc<RwLock<BTreeMap<u64, Arc<RwLock<Player>>>>>,
+    pub player_index: Arc<RwLock<HashMap<PlayerKey, u64>>>,
     pub galaxy: Galaxy,
     send_stop: Sender<bool>,
 }
@@ -21,6 +25,7 @@ impl Game {
         let data = Game {
             players: Arc::new(RwLock::new(BTreeMap::new())),
             galaxy: Galaxy::init(),
+            player_index: Arc::new(RwLock::new(HashMap::new())),
             send_stop,
         };
         let thread_data = data.clone();
@@ -34,10 +39,8 @@ impl Game {
         let sleepmin_iter = std::time::Duration::from_millis(300);
         let mut last_iter = std::time::Instant::now();
         while stop.try_recv().is_err_and(|x| x == TryRecvError::Empty) {
-            log::debug!("Starting a new thread loop");
             self.threadloop();
             let took = std::time::Instant::now() - last_iter;
-            log::debug!("Thread loop took {took:?}");
             std::thread::sleep(sleepmin_iter - took);
             last_iter = std::time::Instant::now();
         }
