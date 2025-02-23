@@ -7,6 +7,9 @@ pub enum Errcode {
     ShipNotFound(crate::ship::ShipId),
     NotEnoughMoney(f64, f64),
     InvalidArgument(&'static str),
+    CrewMemberNotIdle(crate::crew::CrewId),
+    ShipAlreadyHasPilot,
+    CrewNotNeeded,
 }
 
 impl Errcode {
@@ -21,6 +24,9 @@ impl Errcode {
                 format!("Not enough money, need {need}, got {got}")
             }
             Errcode::InvalidArgument(arg) => format!("Argument {arg} has an invalid value"),
+            Errcode::CrewMemberNotIdle(_) => todo!(),
+            Errcode::ShipAlreadyHasPilot => "This ship already has a pilot".to_string(),
+            Errcode::CrewNotNeeded => "This crew member is not needed aboard this ship".to_string(),
         }
     }
 }

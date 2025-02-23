@@ -66,7 +66,8 @@
   check_todos = let
     ignored=builtins.concatStringsSep "|" [
       ".git"
-      ".forgejo"
+      ".forgejo/scripts.nix"
+      ".forgejo/workflows"
       "TODO.md"
     ];
 

@@ -57,17 +57,11 @@ impl Player {
 
     pub fn update_wages(&mut self, station: &Station) {
         self.costs = 0.0;
-
-        self.costs += station
-            .idle_crew
-            .values()
-            .map(|crew| crew.wage())
-            .sum::<f64>();
-
+        self.costs += station.idle_crew.sum_wages();
         self.costs += self
             .ships
             .values()
-            .map(|ship| ship.crew.values().map(|crew| crew.wage()).sum::<f64>())
+            .map(|ship| ship.crew.sum_wages())
             .sum::<f64>();
     }
 

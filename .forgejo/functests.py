@@ -35,21 +35,20 @@ class Tester:
     def disp_error(self, exc):
         print("!!! Test", self.current_test, " "*(self.indent - len(self.current_test)), "ERR")
 
-        errdata = "Error occured on test " + self.current_test + "\n\n"
+        errdata = "Trace of the test:\n"
+        errdata += ("=" * 10) + " TRACE " + ("=" * 10) + "\n"
+        for line in self.trace:
+            errdata += line + "\n"
+        errdata += ("=" * 10) + "  END  " + ("=" * 10) + "\n"
         tb_str = traceback.format_exception(
             exc,
             value=exc,
             tb=exc.__traceback__,
         )
+        print(exc)
         for line in tb_str:
             if (" assert " in line) or ("in test_" in line):
                 errdata += line.strip() + "\n"
-
-        errdata += "\nTrace of the test:\n"
-        errdata += ("=" * 10) + " TRACE " + ("=" * 10) + "\n"
-        for line in self.trace:
-            errdata += line + "\n"
-        errdata += ("=" * 10) + "  END  " + ("=" * 10)
         self.saved_errors[self.current_test] = errdata
 
     def disp_ok(self):
@@ -95,6 +94,18 @@ class Tester:
         got = self.assert_ok("/newplayer", method="POST", body={"name": name})
         self.key = self.assert_got(got, "key", None)
         self.id = self.assert_got(got, "playerId", None)
+
+    def buy_a_ship(self, retind=0):
+        player = self.assert_ok(f"/player/{self.id}")
+        got = self.assert_ok("/shipyard/list")
+        shiplist = self.assert_got(got, "ships", None)
+        assert len(shiplist) > 0
+        for ship in shiplist:
+            if ship["price"] <= player["money"]:
+                self.assert_ok("/shipyard/buy/" + str(ship["id"]))
+        after = self.assert_ok(f"/player/{self.id}")
+        assert len(after["ships"]) > 0
+        return after["ships"][retind]
 
     def assert_ok(self, endpoint, **kwargs):
         got = self.request(endpoint, **kwargs)
@@ -174,6 +185,7 @@ class Tester:
             self.assert_got(ship, "cargo_capacity", None)
             self.assert_got(ship, "fuel_tank_capacity", None)
             self.assert_got(ship, "hull_decay_capacity", None)
+            self.assert_got(ship, "price", None)
             ships[ship["id"]] = ship
 
         n = 0
@@ -203,10 +215,12 @@ class Tester:
         self.create_test_player()
         for ctype in ["pilot", "operator", "trader", "soldier"]:
             got = self.assert_ok(f"/crew/hire/{ctype}")
-            crew_id = self.assert_got(got, "crew_member_id", None)
-            idled = self.assert_got(got, "idle", None)
+            crew_id = self.assert_got(got, "id", None)
+
+            idled = self.assert_ok("/crew/idle")
+            idled = self.assert_got(idled, "idle", None)
             assert len(idled) > 0
-            assert idled[str(crew_id)] == ctype.capitalize()
+            assert idled[str(crew_id)] == { "member_type": ctype.capitalize(), "rank": 1 }
         self.assert_error(f"/crew/hire/notexist", errtype="InvalidArgument(\"crewtype\")")
 
     @functest
@@ -217,6 +231,43 @@ class Tester:
         time.sleep(0.3)
         after = self.assert_ok(f"/player/{self.id}")
         assert before["money"] > after["money"]
+
+    @functest
+    def test_assign_crew(self):
+        self.create_test_player()
+        ship = self.buy_a_ship()
+
+        pilot = self.assert_ok(f"/crew/hire/pilot")
+        pilot2 = self.assert_ok(f"/crew/hire/pilot")
+        operator = self.assert_ok(f"/crew/hire/operator")
+
+        idle = self.assert_ok("/crew/idle")
+        assert len(self.assert_got(idle, "idle", None)) == 3
+
+        shipstatus = self.assert_ok("/ship/" + str(ship["id"]))
+        stats = self.assert_got(shipstatus, "stats", None)
+        speed = self.assert_got(stats, "speed", None)
+        assert speed == 0
+
+        self.assert_ok("/crew/assign/" + str(pilot["id"]) + "/" + str(ship["id"]))
+        idle = self.assert_ok("/crew/idle")
+        assert len(self.assert_got(idle, "idle", None)) == 2
+
+        shipstatus = self.assert_ok("/ship/" + str(ship["id"]))
+        self.assert_got(shipstatus, "crew", { str(pilot["id"]): { "member_type": "Pilot", "rank": 1 }})
+        self.assert_got(shipstatus, "pilot", pilot["id"])
+        stats = self.assert_got(shipstatus, "stats", None)
+        speed_after = self.assert_got(stats, "speed", None)
+        assert speed_after > 0
+
+        self.assert_error(
+            "/crew/assign/" + str(pilot2["id"]) + "/" + str(ship["id"]),
+            errtype="ShipAlreadyHasPilot",
+        )
+        idle = self.assert_ok("/crew/idle")
+        assert len(self.assert_got(idle, "idle", None)) == 2
+        shipstatus_after = self.assert_ok("/ship/" + str(ship["id"]))
+        assert shipstatus == shipstatus_after
 
 if __name__ == "__main__":
     t = Tester(sys.argv[1], sys.argv[2])

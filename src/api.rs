@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 
 use crate::errors::Errcode;
 use crate::player::{PlayerKey, ReqNewPlayer};
+use crate::ship::ShipId;
 use crate::GameState;
 
 pub type ApiResult = Result<serde_json::Value, Errcode>;
@@ -107,31 +108,73 @@ async fn shipyard_buy(
     build_response(crate::galaxy::station::buy_ship(player, station, *id))
 }
 
+#[web::get("/crew/idle")]
+async fn idle_crew(srv: GameState, req: HttpRequest) -> impl web::Responder {
+    let player = get_player!(srv, req);
+    let station_coord = player.read().unwrap().station;
+    let station = srv.galaxy.get_station(station_coord).unwrap();
+    build_response(crate::galaxy::station::get_idle_crew(station))
+}
+
 #[web::get("/crew/hire/{crewtype}")]
 async fn hire_crew(
     srv: GameState,
     crewtype: Path<String>,
     req: HttpRequest,
 ) -> impl web::Responder {
-    use crate::crew::CrewType;
+    use crate::crew::CrewMemberType;
     let player = get_player!(srv, req);
     let station_coord = player.read().unwrap().station;
     let station = srv.galaxy.get_station(station_coord).unwrap();
     let crewtype = match crewtype.as_str() {
-        "pilot" => CrewType::Pilot,
-        "operator" => CrewType::Operator,
-        "trader" => CrewType::Trader,
-        "soldier" => CrewType::Soldier,
+        "pilot" => CrewMemberType::Pilot,
+        "operator" => CrewMemberType::Operator,
+        "trader" => CrewMemberType::Trader,
+        "soldier" => CrewMemberType::Soldier,
         _ => return build_response(Err(Errcode::InvalidArgument("crewtype"))),
     };
     build_response(crate::crew::hire_crew(player, station, crewtype))
 }
 
+#[web::get("/crew/assign/{crewid}/{shipid}")]
+async fn assign_crew(
+    args: Path<(crate::crew::CrewId, crate::ship::ShipId)>,
+    srv: GameState,
+    req: HttpRequest,
+) -> impl web::Responder {
+    let player = get_player!(srv, req);
+    let station_coord = player.read().unwrap().station;
+    let station = srv.galaxy.get_station(station_coord).unwrap();
+    let (crew_id, ship_id) = args.as_ref();
+    let mut player = player.write().unwrap();
+    let Some(ship) = player.ships.get_mut(ship_id) else {
+        return build_response(Err(Errcode::ShipNotFound(*ship_id)));
+    };
+    build_response(crate::crew::assign_ship(*crew_id, station, ship))
+}
+
+#[web::get("/ship/{ship_id}")]
+async fn get_ship_status(
+    srv: GameState,
+    id: Path<ShipId>,
+    req: HttpRequest,
+) -> impl web::Responder {
+    let player = get_player!(srv, req);
+    let player = player.read().unwrap();
+    let Some(ship) = player.ships.get(id.as_ref()) else {
+        return build_response(Err(Errcode::ShipNotFound(*id)));
+    };
+    build_response(crate::ship::get_ship_status(ship))
+}
+
 pub fn configure(srv: &mut ServiceConfig) {
     srv.service(ping)
         .service(hire_crew)
-        .service(list_shipyard_ships)
+        .service(idle_crew)
+        .service(assign_crew)
+        .service(get_ship_status)
         .service(shipyard_buy)
+        .service(list_shipyard_ships)
         .service(get_player)
         .service(new_player);
 }

@@ -1,24 +1,23 @@
-use std::collections::BTreeMap;
 use std::sync::{Arc, RwLock};
 
 use serde_json::json;
 
 use crate::api::ApiResult;
-use crate::crew::{CrewId, CrewType};
+use crate::crew::Crew;
 use crate::errors::Errcode;
 use crate::player::Player;
 use crate::ship::{Ship, ShipId};
 
 pub struct Station {
     shipyard: Vec<Ship>,
-    pub idle_crew: BTreeMap<CrewId, CrewType>,
+    pub idle_crew: Crew,
 }
 
 impl Station {
     pub fn init() -> Station {
         Station {
             shipyard: Ship::init_shipyard(),
-            idle_crew: BTreeMap::new(),
+            idle_crew: Crew::default(),
         }
     }
 }
@@ -26,25 +25,18 @@ impl Station {
 // TODO (#22)    Have a "ship price rate" metric for a station, that afffects the ship prices
 //     Correlated to the price of the resources on the station
 
-pub fn list_shipyard_ships(station: Arc<RwLock<Station>>) -> ApiResult {
-    let mut ships = vec![];
-    for ship in station.read().unwrap().shipyard.iter() {
-        let mut s = serde_json::to_value(ship).unwrap();
-        let serde_json::Value::Object(ref mut m) = s else {
-            unreachable!();
-        };
-        m.remove("position");
-        m.remove("crew");
-        m.remove("cargo");
-        m.remove("fuel_tank");
-        m.remove("hull_decay");
-        m.insert(
-            "price".to_string(),
-            serde_json::to_value(ship.compute_price()).unwrap(),
-        );
+pub fn get_idle_crew(station: Arc<RwLock<Station>>) -> ApiResult {
+    Ok(json!({"idle": station.read().unwrap().idle_crew}))
+}
 
-        ships.push(s);
-    }
+pub fn list_shipyard_ships(station: Arc<RwLock<Station>>) -> ApiResult {
+    let ships = station
+        .read()
+        .unwrap()
+        .shipyard
+        .iter()
+        .map(|ship| ship.market_data())
+        .collect::<Vec<serde_json::Value>>();
     Ok(json!({
         "ships": ships,
     }))
