@@ -1,30 +1,13 @@
-use std::{
-    collections::BTreeMap,
-    sync::{Arc, RwLock},
-};
-
 use ntex::web::{self, HttpRequest, HttpResponse};
 
 mod errors;
+mod galaxy;
 mod game;
-mod nav;
+mod player;
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone)]
-pub struct ServerStateInner {
-    players: Arc<RwLock<BTreeMap<u64, RwLock<game::Player>>>>,
-}
-
-pub type ServerState = ntex::web::types::State<ServerStateInner>;
-
-impl ServerStateInner {
-    pub fn init() -> ServerStateInner {
-        ServerStateInner {
-            players: Arc::new(RwLock::new(BTreeMap::new())),
-        }
-    }
-}
+pub type ServerState = ntex::web::types::State<game::Game>;
 
 pub fn build_response(data: serde_json::Value) -> HttpResponse {
     HttpResponse::Ok()
@@ -51,10 +34,12 @@ pub fn get_json_key(data: &serde_json::Value, key: &'static str) -> Option<serde
     unreachable!()
 }
 
-pub fn get_player_key(req: &HttpRequest) -> Option<&str> {
+pub fn get_player_key(req: &HttpRequest) -> Option<std::borrow::Cow<'_, str>> {
     for q in req.query_string().split("&") {
         if q.starts_with("key=") {
-            return q.split("=").nth(1);
+            let key = q.split("=").nth(1)?;
+            let deckey = urlencoding::decode(key).ok()?;
+            return Some(deckey);
         }
     }
     None
@@ -67,18 +52,26 @@ async fn ping() -> impl web::Responder {
 
 #[ntex::main]
 async fn main() -> std::io::Result<()> {
-    env_logger::init();
-    println!("Running on http://127.0.0.1:8080");
-    let state = ServerStateInner::init();
+    env_logger::builder()
+        .filter_module("ntex_server", log::LevelFilter::Warn)
+        .init();
+    log::info!("Running on http://127.0.0.1:8080");
+    let (gamethread, state) = game::Game::init();
+    let game = state.clone();
 
     #[allow(clippy::redundant_closure)] // DEV
-    web::HttpServer::new(move || {
+    let res = web::HttpServer::new(move || {
         web::App::new()
+            .wrap(web::middleware::Logger::default())
             .state(state.clone())
             .service(ping)
-            .configure(|srv| game::configure(srv))
+            .configure(|srv| player::configure(srv))
     })
+    .stop_runtime()
     .bind(("127.0.0.1", 8080))?
     .run()
-    .await
+    .await;
+
+    game.stop(gamethread);
+    res
 }

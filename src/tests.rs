@@ -18,16 +18,12 @@ fn test_get_json_by_key() {
     });
 
     assert_eq!(
-        get_json_key(&data, "a.b.c.d.e")
-            .map(|v| v.as_number().map(|v| v.as_u64()).flatten())
-            .flatten(),
+        get_json_key(&data, "a.b.c.d.e").and_then(|v| v.as_number().and_then(|v| v.as_u64())),
         Some(3)
     );
 
     assert_eq!(
-        get_json_key(&data, "a.f.g")
-            .map(|v| v.as_number().map(|v| v.as_u64()).flatten())
-            .flatten(),
+        get_json_key(&data, "a.f.g").and_then(|v| v.as_number().and_then(|v| v.as_u64())),
         Some(5)
     );
 

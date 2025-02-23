@@ -18,7 +18,7 @@
       text = ''
         export CARGO_HOME=$PWD/.cargohome
         cargo build
-        ./target/debug/simeis &
+        ./target/debug/simeis 1>/tmp/simeis_logs 2>&1 &
         sleep 1
 
         if [ -z "$(jobs -r)" ]; then
@@ -29,6 +29,10 @@
         if ! python3 .forgejo/functests.py 127.0.0.1 8080; then
           echo "Some tests failed"
           kill "$(jobs -p)"
+
+          echo "Server logs:"
+          cat /tmp/simeis_logs
+          rm /tmp/simeis_logs
           exit 1;
         fi
 

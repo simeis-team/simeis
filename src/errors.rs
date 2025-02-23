@@ -6,6 +6,7 @@ use crate::build_response;
 pub enum Errcode {
     NoPlayerKey,
     PlayerNotFound(u64),
+    PlayerAlreadyExists(String),
 }
 
 impl Errcode {
@@ -13,6 +14,7 @@ impl Errcode {
         let msg = match self {
             Errcode::NoPlayerKey => "No player key provided with the request".to_string(),
             Errcode::PlayerNotFound(id) => format!("No player was found with this ID: {id}"),
+            Errcode::PlayerAlreadyExists(name) => format!("Player {name} already exists"),
         };
 
         build_response(json!({

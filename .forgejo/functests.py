@@ -70,6 +70,7 @@ class Tester:
             url += "?" + qry
 
         if method == "GET":
+            headers["Content-Type"] = "application/x-www-form-urlencoded"
             got = requests.get(url, headers=headers)
         elif method == "POST":
             headers["Content-Type"] = "application/json"
@@ -96,18 +97,25 @@ class Tester:
 
     def assert_error(self, endpoint, errtype=None, **kwargs):
         got = self.request(endpoint, **kwargs)
+        self.addtrace("Expect this data to be ERR")
         assert "type" in got
         if errtype is None:
             self.addtrace("Expect this data to have any error")
             assert got["error"] != "ok"
         else:
-            self.addtrace("Expect this data to have an error", errtype)
+            self.addtrace("Expect this data to have an error", errtype, "got", got["type"])
             assert got["type"] == errtype
         return got
 
-    def assert_got(self, data, key, val, **kwargs):
-        self.addtrace("Expect this data to have the key", key)
-        assert key in data.keys()
+    def assert_got(self, data, key, val, negate=False):
+        if not negate:
+            self.addtrace("Expect this data to have the key", key)
+            assert key in data.keys()
+        else:
+            self.addtrace("Expect this data to NOT have the key", key)
+            assert key not in data.keys()
+            return None
+
         if val is not None:
             self.addtrace(f"Expect data[{key}] to have value {val}")
             assert data[key] == val
@@ -126,16 +134,23 @@ class Tester:
     def test_create_player(self):
         self.assert_error("/player/53", errtype="NoPlayerKey")
         self.assert_error("/player/53", errtype="PlayerNotFound(53)", key=12341234)
+
         self.request("/newplayer", method="POST", body={}, expcode=400)
         got = self.assert_ok("/newplayer", method="POST", body={"name": "Testuser"})
         self.key = self.assert_got(got, "key", None)
         self.id = self.assert_got(got, "playerId", 11070862243173938738)
 
-        self.assert_ok("/player/" + str(self.id))
-        # TODO (#3)   Test that it contains "secret" data as it's our player
+        got = self.assert_ok("/player/" + str(self.id))
+        self.assert_got(got, "money", 10000)
 
-        self.assert_ok("/player/" + str(self.id), key=1234123423)
-        # TODO (#3)    Test that it doesn't contain any "secret" data as it's not our player
+        got = self.assert_ok("/player/" + str(self.id), key=1234123423)
+        self.assert_got(got, "money", None, negate=True)
+
+        self.assert_ok("/newplayer", method="POST", body={"name": "Testuser2"})
+        self.assert_error("/newplayer",
+            method="POST", body={"name": "Testuser2"},
+            errtype="PlayerAlreadyExists(\"Testuser2\")"
+        )
 
 if __name__ == "__main__":
     t = Tester(sys.argv[1], sys.argv[2])
