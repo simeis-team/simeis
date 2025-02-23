@@ -9,6 +9,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::api::ApiResult;
 use crate::errors::Errcode;
+use crate::galaxy::station::Station;
 use crate::galaxy::SpaceCoord;
 use crate::ship::{Ship, ShipId};
 use crate::GameState;
@@ -52,6 +53,22 @@ impl Player {
             station,
             ships: BTreeMap::new(),
         }
+    }
+
+    pub fn update_wages(&mut self, station: &Station) {
+        self.costs = 0.0;
+
+        self.costs += station
+            .idle_crew
+            .values()
+            .map(|crew| crew.wage())
+            .sum::<f64>();
+
+        self.costs += self
+            .ships
+            .values()
+            .map(|ship| ship.crew.values().map(|crew| crew.wage()).sum::<f64>())
+            .sum::<f64>();
     }
 
     pub fn lose(&mut self) {

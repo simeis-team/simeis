@@ -1,4 +1,5 @@
 import sys
+import time
 import json
 import requests
 import traceback
@@ -196,6 +197,26 @@ class Tester:
 
         # TODO (#22)    Sell ship with given ID
         # TODO (#22)   Assert ship no longer in possession
+
+    @functest
+    def test_hire_crew(self):
+        self.create_test_player()
+        for ctype in ["pilot", "operator", "trader", "soldier"]:
+            got = self.assert_ok(f"/crew/hire/{ctype}")
+            crew_id = self.assert_got(got, "crew_member_id", None)
+            idled = self.assert_got(got, "idle", None)
+            assert len(idled) > 0
+            assert idled[str(crew_id)] == ctype.capitalize()
+        self.assert_error(f"/crew/hire/notexist", errtype="InvalidArgument(\"crewtype\")")
+
+    @functest
+    def test_money(self):
+        self.create_test_player()
+        self.assert_ok(f"/crew/hire/pilot")
+        before = self.assert_ok(f"/player/{self.id}")
+        time.sleep(0.3)
+        after = self.assert_ok(f"/player/{self.id}")
+        assert before["money"] > after["money"]
 
 if __name__ == "__main__":
     t = Tester(sys.argv[1], sys.argv[2])

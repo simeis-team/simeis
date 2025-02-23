@@ -1,9 +1,11 @@
+use std::collections::BTreeMap;
+
 use cargo::ShipCargo;
 use module::ShipModule;
 use rand::Rng;
 use serde::Serialize;
 
-use crate::crew::CrewId;
+use crate::crew::{CrewId, CrewType};
 use crate::galaxy::SpaceCoord;
 
 pub mod cargo;
@@ -22,7 +24,7 @@ pub struct Ship {
     position: SpaceCoord,
 
     modules: Vec<ShipModule>,
-    crew: Vec<CrewId>,
+    pub crew: BTreeMap<CrewId, CrewType>,
 
     reactor_power: u16,
 

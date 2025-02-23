@@ -6,6 +6,7 @@ pub enum Errcode {
     NoPlayerWithKey,
     ShipNotFound(crate::ship::ShipId),
     NotEnoughMoney(f64, f64),
+    InvalidArgument(&'static str),
 }
 
 impl Errcode {
@@ -19,6 +20,7 @@ impl Errcode {
             Errcode::NotEnoughMoney(got, need) => {
                 format!("Not enough money, need {need}, got {got}")
             }
+            Errcode::InvalidArgument(arg) => format!("Argument {arg} has an invalid value"),
         }
     }
 }

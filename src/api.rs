@@ -107,8 +107,29 @@ async fn shipyard_buy(
     build_response(crate::galaxy::station::buy_ship(player, station, *id))
 }
 
+#[web::get("/crew/hire/{crewtype}")]
+async fn hire_crew(
+    srv: GameState,
+    crewtype: Path<String>,
+    req: HttpRequest,
+) -> impl web::Responder {
+    use crate::crew::CrewType;
+    let player = get_player!(srv, req);
+    let station_coord = player.read().unwrap().station;
+    let station = srv.galaxy.get_station(station_coord).unwrap();
+    let crewtype = match crewtype.as_str() {
+        "pilot" => CrewType::Pilot,
+        "operator" => CrewType::Operator,
+        "trader" => CrewType::Trader,
+        "soldier" => CrewType::Soldier,
+        _ => return build_response(Err(Errcode::InvalidArgument("crewtype"))),
+    };
+    build_response(crate::crew::hire_crew(player, station, crewtype))
+}
+
 pub fn configure(srv: &mut ServiceConfig) {
     srv.service(ping)
+        .service(hire_crew)
         .service(list_shipyard_ships)
         .service(shipyard_buy)
         .service(get_player)

@@ -1,20 +1,24 @@
+use std::collections::BTreeMap;
 use std::sync::{Arc, RwLock};
 
 use serde_json::json;
 
 use crate::api::ApiResult;
+use crate::crew::{CrewId, CrewType};
 use crate::errors::Errcode;
 use crate::player::Player;
 use crate::ship::{Ship, ShipId};
 
 pub struct Station {
     shipyard: Vec<Ship>,
+    pub idle_crew: BTreeMap<CrewId, CrewType>,
 }
 
 impl Station {
     pub fn init() -> Station {
         Station {
             shipyard: Ship::init_shipyard(),
+            idle_crew: BTreeMap::new(),
         }
     }
 }
