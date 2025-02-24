@@ -4,7 +4,7 @@ use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
 
 use crate::galaxy::Galaxy;
-use crate::player::{Player, PlayerKey};
+use crate::player::{Player, PlayerId, PlayerKey};
 
 const ITER_PERIOD: std::time::Duration = std::time::Duration::from_millis(100);
 
@@ -13,8 +13,8 @@ const ITER_PERIOD: std::time::Duration = std::time::Duration::from_millis(100);
 
 #[derive(Clone)]
 pub struct Game {
-    pub players: Arc<RwLock<BTreeMap<u64, Arc<RwLock<Player>>>>>,
-    pub player_index: Arc<RwLock<HashMap<PlayerKey, u64>>>,
+    pub players: Arc<RwLock<BTreeMap<PlayerId, Arc<RwLock<Player>>>>>,
+    pub player_index: Arc<RwLock<HashMap<PlayerKey, PlayerId>>>,
     pub galaxy: Galaxy,
     send_stop: Sender<bool>,
 }

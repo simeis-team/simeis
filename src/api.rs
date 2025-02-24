@@ -3,8 +3,10 @@ use ntex::web::types::{Json, Path};
 use ntex::web::{self, HttpRequest, HttpResponse, ServiceConfig};
 use serde_json::{json, Value};
 
+use crate::crew::CrewId;
 use crate::errors::Errcode;
-use crate::player::{PlayerKey, ReqNewPlayer};
+use crate::galaxy::station::StationId;
+use crate::player::{PlayerId, PlayerKey, ReqNewPlayer};
 use crate::ship::navigation::Travel;
 use crate::ship::ShipId;
 use crate::GameState;
@@ -23,6 +25,16 @@ macro_rules! get_player {
         let players = $srv.players.read().unwrap();
         let player = players.get(id).unwrap();
         player.clone()
+    }};
+}
+
+macro_rules! get_station {
+    ($srv:ident, $player:ident, $id:expr) => {{
+        let player = $player.read().unwrap();
+        let Some(station_coord) = player.stations.get($id) else {
+            return build_response(Err(Errcode::NoSuchStation(*$id)));
+        };
+        $srv.galaxy.get_station(station_coord).unwrap()
     }};
 }
 
@@ -80,7 +92,7 @@ async fn new_player(srv: GameState, req: Json<ReqNewPlayer>) -> impl web::Respon
 }
 
 #[web::get("/player/{id}")]
-async fn get_player(srv: GameState, id: Path<u64>, req: HttpRequest) -> impl web::Responder {
+async fn get_player(srv: GameState, id: Path<PlayerId>, req: HttpRequest) -> impl web::Responder {
     let Some(key) = get_player_key(&req) else {
         return build_response(Err(Errcode::NoPlayerKey));
     };
@@ -89,44 +101,46 @@ async fn get_player(srv: GameState, id: Path<u64>, req: HttpRequest) -> impl web
     build_response(crate::player::get_player(srv, *id, key))
 }
 
-#[web::get("/shipyard/list")]
-async fn list_shipyard_ships(srv: GameState, req: HttpRequest) -> impl web::Responder {
+#[web::get("/station/{station_id}/shipyard/list")]
+async fn list_shipyard_ships(
+    srv: GameState,
+    id: Path<StationId>,
+    req: HttpRequest,
+) -> impl web::Responder {
     let player = get_player!(srv, req);
-    let station_coord = player.read().unwrap().station;
-    let station = srv.galaxy.get_station(station_coord).unwrap();
+    let station = get_station!(srv, player, id.as_ref());
     build_response(crate::galaxy::station::list_shipyard_ships(station))
 }
 
-#[web::get("/shipyard/buy/{id}")]
+#[web::get("/station/{station_id}/shipyard/buy/{id}")]
 async fn shipyard_buy(
     srv: GameState,
-    id: Path<crate::ship::ShipId>,
+    args: Path<(StationId, ShipId)>,
     req: HttpRequest,
 ) -> impl web::Responder {
+    let (station_id, ship_id) = args.as_ref();
     let player = get_player!(srv, req);
-    let station_coord = player.read().unwrap().station;
-    let station = srv.galaxy.get_station(station_coord).unwrap();
-    build_response(crate::galaxy::station::buy_ship(player, station, *id))
+    let station = get_station!(srv, player, station_id);
+    build_response(crate::galaxy::station::buy_ship(player, station, *ship_id))
 }
 
-#[web::get("/crew/idle")]
-async fn idle_crew(srv: GameState, req: HttpRequest) -> impl web::Responder {
+#[web::get("/station/{station_id}/crew/idle")]
+async fn idle_crew(srv: GameState, id: Path<StationId>, req: HttpRequest) -> impl web::Responder {
     let player = get_player!(srv, req);
-    let station_coord = player.read().unwrap().station;
-    let station = srv.galaxy.get_station(station_coord).unwrap();
+    let station = get_station!(srv, player, id.as_ref());
     build_response(crate::galaxy::station::get_idle_crew(station))
 }
 
-#[web::get("/crew/hire/{crewtype}")]
+#[web::get("/station/{station_id}/crew/hire/{crewtype}")]
 async fn hire_crew(
     srv: GameState,
-    crewtype: Path<String>,
+    args: Path<(StationId, String)>,
     req: HttpRequest,
 ) -> impl web::Responder {
+    let (station_id, crewtype) = args.as_ref();
     use crate::crew::CrewMemberType;
     let player = get_player!(srv, req);
-    let station_coord = player.read().unwrap().station;
-    let station = srv.galaxy.get_station(station_coord).unwrap();
+    let station = get_station!(srv, player, station_id);
     let crewtype = match crewtype.as_str() {
         "pilot" => CrewMemberType::Pilot,
         "operator" => CrewMemberType::Operator,
@@ -137,21 +151,28 @@ async fn hire_crew(
     build_response(crate::crew::hire_crew(player, station, crewtype))
 }
 
-#[web::get("/crew/assign/{crewid}/{shipid}")]
+#[web::get("/station/{station_id}/crew/assign/{crewid}/{shipid}")]
 async fn assign_crew(
-    args: Path<(crate::crew::CrewId, crate::ship::ShipId)>,
+    args: Path<(StationId, CrewId, ShipId)>,
     srv: GameState,
     req: HttpRequest,
 ) -> impl web::Responder {
+    let (station_id, crew_id, ship_id) = args.as_ref();
     let player = get_player!(srv, req);
-    let station_coord = player.read().unwrap().station;
-    let station = srv.galaxy.get_station(station_coord).unwrap();
-    let (crew_id, ship_id) = args.as_ref();
+    let station = get_station!(srv, player, station_id);
     let mut player = player.write().unwrap();
     let Some(ship) = player.ships.get_mut(ship_id) else {
         return build_response(Err(Errcode::ShipNotFound(*ship_id)));
     };
     build_response(crate::crew::assign_ship(*crew_id, station, ship))
+}
+
+#[web::get("/station/{station_id}/scan")]
+async fn scan(id: Path<StationId>, srv: GameState, req: HttpRequest) -> impl web::Responder {
+    let player = get_player!(srv, req);
+    let station = get_station!(srv, player, id.as_ref());
+    let results = station.read().unwrap().scan(&srv.galaxy);
+    build_response(Ok(results.to_json()))
 }
 
 #[web::get("/ship/{ship_id}")]
@@ -211,6 +232,7 @@ pub fn configure(srv: &mut ServiceConfig) {
         .service(list_shipyard_ships)
         .service(ask_navigate)
         .service(compute_travel_costs)
+        .service(scan)
         .service(get_player)
         .service(new_player);
 }

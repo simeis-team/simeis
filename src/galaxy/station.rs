@@ -1,5 +1,6 @@
 use std::sync::{Arc, RwLock};
 
+use serde::Serialize;
 use serde_json::json;
 
 use crate::api::ApiResult;
@@ -8,17 +9,36 @@ use crate::errors::Errcode;
 use crate::player::Player;
 use crate::ship::{Ship, ShipId};
 
+use super::scan::ScanResult;
+use super::{Galaxy, SpaceCoord};
+
+pub type StationId = u16;
+
+#[derive(Serialize)]
 pub struct Station {
-    shipyard: Vec<Ship>,
+    pub id: StationId,
+    pub position: SpaceCoord,
+
+    // Data that can't be scanned
+    #[serde(skip)]
     pub idle_crew: Crew,
+    #[serde(skip)]
+    shipyard: Vec<Ship>,
 }
 
 impl Station {
-    pub fn init(position: super::SpaceCoord) -> Station {
+    pub fn init(id: u16, position: super::SpaceCoord) -> Station {
         Station {
-            shipyard: Ship::init_shipyard(position),
+            id,
+            position,
             idle_crew: Crew::default(),
+            shipyard: Ship::init_shipyard(position),
         }
+    }
+
+    // TODO (#27) Allow to build improvements for the scanner
+    pub fn scan(&self, galaxy: &Galaxy) -> ScanResult {
+        galaxy.scan_sector(&self.position, 0.0)
     }
 }
 

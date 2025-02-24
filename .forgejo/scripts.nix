@@ -78,11 +78,6 @@
         set -e
         ERRCODE=0
         CURL_OPTS="-s"
-
-        export GITHUB_BASE_REF="main"
-        export GITHUB_SERVER_URL="http://0.0.0.0:8083"
-        export GITHUB_REPOSITORY="litchi.pi/teaching"
-
         git fetch origin "$GITHUB_BASE_REF"
         echo ""
 

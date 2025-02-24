@@ -1,7 +1,7 @@
 #[derive(Debug)]
 pub enum Errcode {
     NoPlayerKey,
-    PlayerNotFound(u64),
+    PlayerNotFound(crate::player::PlayerId),
     PlayerAlreadyExists(String),
     NoPlayerWithKey,
     ShipNotFound(crate::ship::ShipId),
@@ -12,6 +12,7 @@ pub enum Errcode {
     CrewNotNeeded,
     CannotPerformTravel,
     NullDistance,
+    NoSuchStation(crate::galaxy::station::StationId),
 }
 
 impl Errcode {
@@ -33,6 +34,7 @@ impl Errcode {
                 "This travel cannot be done with the current state of the ship".to_string()
             }
             Errcode::NullDistance => "You already are on this coordinates".to_string(),
+            Errcode::NoSuchStation(id) => format!("You don't own any station of id {id}"),
         }
     }
 }

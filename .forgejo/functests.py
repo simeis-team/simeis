@@ -104,24 +104,27 @@ class Tester:
         got = self.assert_ok("/player/new", method="POST", body={"name": name})
         self.key = self.assert_got(got, "key", None)
         self.id = self.assert_got(got, "playerId", None)
+        player = self.assert_ok(f"/player/{self.id}")
+        self.station = list(self.assert_got(player, "stations", None).keys())[0]
+        return player
 
     def buy_a_ship(self, retind=0):
         player = self.assert_ok(f"/player/{self.id}")
-        got = self.assert_ok("/shipyard/list")
+        got = self.assert_ok(f"/station/{self.station}/shipyard/list")
         shiplist = self.assert_got(got, "ships", None)
         assert len(shiplist) > 0
         for ship in shiplist:
             if ship["price"] <= player["money"]:
-                self.assert_ok("/shipyard/buy/" + str(ship["id"]))
+                self.assert_ok(f"/station/{self.station}/shipyard/buy/" + str(ship["id"]))
         after = self.assert_ok(f"/player/{self.id}")
         assert len(after["ships"]) > 0
         ship = after["ships"][retind]
         return self.assert_got(ship, "id", None)
 
     def setup_crew(self, shipid):
-        pilot = self.assert_ok(f"/crew/hire/pilot")
+        pilot = self.assert_ok(f"/station/{self.station}/crew/hire/pilot")
         pilotid = self.assert_got(pilot, "id", None)
-        self.assert_ok(f"/crew/assign/{pilotid}/{shipid}")
+        self.assert_ok(f"/station/{self.station}/crew/assign/{pilotid}/{shipid}")
 
     def assert_ok(self, endpoint, **kwargs):
         got = self.request(endpoint, **kwargs)
@@ -168,7 +171,7 @@ class Tester:
         self.request("/player/new", method="POST", body={}, expcode=400)
         got = self.assert_ok("/player/new", method="POST", body={"name": "Testuser"})
         self.key = self.assert_got(got, "key", None)
-        self.id = self.assert_got(got, "playerId", 11070862243173938738)
+        self.id = self.assert_got(got, "playerId", 52238)
 
         pl2 = self.assert_ok("/player/new", method="POST", body={"name": "Testuser2"})
         pl2id = self.assert_got(pl2, "playerId", None)
@@ -194,7 +197,7 @@ class Tester:
         got = self.assert_ok(f"/player/{self.id}")
         beforemoney = self.assert_got(got, "money", None)
 
-        got = self.assert_ok("/shipyard/list")
+        got = self.assert_ok(f"/station/{self.station}/shipyard/list")
         shiplist = self.assert_got(got, "ships", None)
         assert len(shiplist) == 3
         ships = {}
@@ -211,15 +214,15 @@ class Tester:
         n = 0
         while n in ships.keys():
             n += 1
-        self.assert_error(f"/shipyard/buy/{n}", errtype=f"ShipNotFound({n})")
+        self.assert_error(f"/station/{self.station}/shipyard/buy/{n}", errtype=f"ShipNotFound({n})")
 
         sid_cant = [id for id, ship in ships.items() if ship["price"] > beforemoney ][0]
-        self.assert_error(f"/shipyard/buy/{sid_cant}",
+        self.assert_error(f"/station/{self.station}/shipyard/buy/{sid_cant}",
             errtype="NotEnoughMoney(30000.0, {})".format(ships[sid_cant]["price"])
         )
 
         sid_can = [id for id, ship in ships.items() if ship["price"] <= beforemoney ][0]
-        self.assert_ok(f"/shipyard/buy/{sid_can}")
+        self.assert_ok(f"/station/{self.station}/shipyard/buy/{sid_can}")
         after = self.assert_ok(f"/player/{self.id}")
         aftermoney = self.assert_got(after, "money", None)
         ships = self.assert_got(after, "ships", None)
@@ -234,19 +237,19 @@ class Tester:
     def test_hire_crew(self):
         self.create_test_player()
         for ctype in ["pilot", "operator", "trader", "soldier"]:
-            got = self.assert_ok(f"/crew/hire/{ctype}")
+            got = self.assert_ok(f"/station/{self.station}/crew/hire/{ctype}")
             crew_id = self.assert_got(got, "id", None)
 
-            idled = self.assert_ok("/crew/idle")
+            idled = self.assert_ok(f"/station/{self.station}/crew/idle")
             idled = self.assert_got(idled, "idle", None)
             assert len(idled) > 0
             assert idled[str(crew_id)] == { "member_type": ctype.capitalize(), "rank": 1 }
-        self.assert_error(f"/crew/hire/notexist", errtype="InvalidArgument(\"crewtype\")")
+        self.assert_error(f"/station/{self.station}/crew/hire/notexist", errtype="InvalidArgument(\"crewtype\")")
 
     @functest
     def test_money(self):
         self.create_test_player()
-        self.assert_ok(f"/crew/hire/pilot")
+        self.assert_ok(f"/station/{self.station}/crew/hire/pilot")
         before = self.assert_ok(f"/player/{self.id}")
         time.sleep(0.3)
         after = self.assert_ok(f"/player/{self.id}")
@@ -257,11 +260,11 @@ class Tester:
         self.create_test_player()
         shipid = self.buy_a_ship()
 
-        pilot = self.assert_ok(f"/crew/hire/pilot")
-        pilot2 = self.assert_ok(f"/crew/hire/pilot")
-        operator = self.assert_ok(f"/crew/hire/operator")
+        pilot = self.assert_ok(f"/station/{self.station}/crew/hire/pilot")
+        pilot2 = self.assert_ok(f"/station/{self.station}/crew/hire/pilot")
+        operator = self.assert_ok(f"/station/{self.station}/crew/hire/operator")
 
-        idle = self.assert_ok("/crew/idle")
+        idle = self.assert_ok(f"/station/{self.station}/crew/idle")
         assert len(self.assert_got(idle, "idle", None)) == 3
 
         shipstatus = self.assert_ok(f"/ship/{shipid}")
@@ -269,8 +272,8 @@ class Tester:
         speed = self.assert_got(stats, "speed", None)
         assert speed == 0
 
-        self.assert_ok("/crew/assign/" + str(pilot["id"]) + f"/{shipid}")
-        idle = self.assert_ok("/crew/idle")
+        self.assert_ok(f"/station/{self.station}/crew/assign/" + str(pilot["id"]) + f"/{shipid}")
+        idle = self.assert_ok(f"/station/{self.station}/crew/idle")
         assert len(self.assert_got(idle, "idle", None)) == 2
 
         shipstatus = self.assert_ok(f"/ship/{shipid}")
@@ -281,16 +284,16 @@ class Tester:
         assert speed_after > 0
 
         self.assert_error(
-            "/crew/assign/" + str(pilot2["id"]) + f"/{shipid}",
+            f"/station/{self.station}/crew/assign/" + str(pilot2["id"]) + f"/{shipid}",
             errtype="ShipAlreadyHasPilot",
         )
-        idle = self.assert_ok("/crew/idle")
+        idle = self.assert_ok(f"/station/{self.station}/crew/idle")
         assert len(self.assert_got(idle, "idle", None)) == 2
         shipstatus_after = self.assert_ok(f"/ship/{shipid}")
         assert shipstatus == shipstatus_after
 
         operatorid = self.assert_got(operator, "id", None)
-        self.assert_error(f"/crew/assign/{operatorid}/{shipid}", errtype="CrewNotNeeded")
+        self.assert_error(f"/station/{self.station}/crew/assign/{operatorid}/{shipid}", errtype="CrewNotNeeded")
 
     @functest
     def test_travel(self):
@@ -377,6 +380,20 @@ class Tester:
         assert self.assert_got(back, "hull_decay", None) > self.assert_got(after, "hull_decay", None)
         assert self.assert_got(back, "fuel_tank", None) < self.assert_got(before, "fuel_tank", None)
         assert self.assert_got(back, "hull_decay", None) > self.assert_got(before, "hull_decay", None)
+
+    @functest
+    def test_scan(self):
+        self.create_test_player()
+
+        scan = self.assert_ok(f"/station/{self.station}/scan")
+        print(scan)
+
+        planets = self.assert_got(scan, "planets", None)
+        assert len(planets) > 0
+
+        stations = self.assert_got(scan, "stations", None)
+        assert len(stations) > 0
+        assert any([sta["id"] == int(self.station) for sta in stations])
 
 if __name__ == "__main__":
     t = Tester(sys.argv[1], sys.argv[2])

@@ -7,7 +7,7 @@ use shipstats::ShipStats;
 
 use crate::crew::{Crew, CrewId, CrewMemberType};
 use crate::errors::Errcode;
-use crate::galaxy::SpaceCoord;
+use crate::galaxy::{translation, SpaceCoord};
 
 pub mod cargo;
 pub mod module;
@@ -175,13 +175,7 @@ impl Ship {
             self.position = data.destination;
             return true;
         }
-
-        self.position = (
-            ((data.start.0 as f64) + (data.dist_done * data.direction.0)) as u32,
-            ((data.start.1 as f64) + (data.dist_done * data.direction.1)) as u32,
-            ((data.start.2 as f64) + (data.dist_done * data.direction.2)) as u32,
-        );
-
+        self.position = translation(data.start, data.direction, data.dist_done);
         self.fuel_tank -= self.stats.fuel_consumption * tdelta;
         if self.fuel_tank <= 0.0 {
             self.fuel_tank = 0.0;

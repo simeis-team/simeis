@@ -9,19 +9,20 @@ use std::sync::{Arc, RwLock};
 
 use crate::api::ApiResult;
 use crate::errors::Errcode;
-use crate::galaxy::station::Station;
+use crate::galaxy::station::{Station, StationId};
 use crate::galaxy::SpaceCoord;
 use crate::ship::{Ship, ShipId};
 use crate::GameState;
 
 const INIT_MONEY: f64 = 30000.0;
 
+pub type PlayerId = u16;
 pub type PlayerKey = [u8; 128];
 
 // Game state for a single player
 #[allow(dead_code)] // DEV
 pub struct Player {
-    pub id: u64,
+    pub id: PlayerId,
     key: PlayerKey,
     lost: bool,
 
@@ -29,12 +30,12 @@ pub struct Player {
     pub money: f64,
     pub costs: f64,
 
-    pub station: SpaceCoord,
+    pub stations: BTreeMap<StationId, SpaceCoord>,
     pub ships: BTreeMap<ShipId, Ship>,
 }
 
 impl Player {
-    pub fn new(station: SpaceCoord, req: ReqNewPlayer) -> Player {
+    pub fn new(station: (StationId, SpaceCoord), req: ReqNewPlayer) -> Player {
         let mut hasher = DefaultHasher::new();
         hasher.write(req.name.as_bytes());
         let mut rng = rand::rng();
@@ -48,16 +49,18 @@ impl Player {
         if req.name.starts_with("test-rich") {
             money *= 10000.0;
         }
+        let mut stations = BTreeMap::new();
+        stations.insert(station.0, station.1);
         Player {
             key: randbytes,
-            id: hasher.finish(),
+            id: (hasher.finish() % (PlayerId::MAX as u64)) as PlayerId,
             lost: false,
 
             money,
             costs: 0.0,
 
             name: req.name,
-            station,
+            stations,
             ships: BTreeMap::new(),
         }
     }
@@ -116,7 +119,7 @@ pub fn new_player(srv: GameState, req: ReqNewPlayer) -> ApiResult {
     Ok(resp)
 }
 
-pub fn get_player(srv: GameState, id: u64, key: PlayerKey) -> ApiResult {
+pub fn get_player(srv: GameState, id: PlayerId, key: PlayerKey) -> ApiResult {
     let players = srv.players.read().unwrap();
     let Some(playerlck) = players.get(&id) else {
         return Err(Errcode::PlayerNotFound(id));
@@ -128,16 +131,17 @@ pub fn get_player(srv: GameState, id: u64, key: PlayerKey) -> ApiResult {
     if player.key == key {
         Ok(json!({
             "name": player.name,
-            "station": player.station,
+            "stations": player.stations,
             "money": player.money,
             "ships": serde_json::to_value(
                 player.ships.values().collect::<Vec<&Ship>>()
             ).unwrap(),
+            "costs": player.costs,
         }))
     } else {
         Ok(json!({
             "name": player.name,
-            "station": player.station,
+            "stations": player.stations,
         }))
     }
 }
