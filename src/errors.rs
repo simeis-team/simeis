@@ -7,6 +7,8 @@ pub enum Errcode {
     ShipNotFound(crate::ship::ShipId),
     NotEnoughMoney(f64, f64),
     InvalidArgument(&'static str),
+    ShipNotExtracting,
+    ShipNotIdle,
     CrewMemberNotIdle(crate::crew::CrewId),
     CrewNotNeeded,
     CannotPerformTravel,
@@ -16,6 +18,7 @@ pub enum Errcode {
     CannotExtractWithoutPlanet,
     ShipNotInStation,
     WrongCrewType(crate::crew::CrewMemberType),
+    CargoFull,
 }
 
 impl Errcode {
@@ -45,6 +48,9 @@ impl Errcode {
             Errcode::WrongCrewType(ctype) => {
                 format!("This module requires a crew member of type {ctype:?}")
             }
+            Errcode::CargoFull => "The cargo is full".to_string(),
+            Errcode::ShipNotIdle => "The ship is already occupied with a task".to_string(),
+            Errcode::ShipNotExtracting => "This ship is not extracting".to_string(),
         }
     }
 }

@@ -7,10 +7,15 @@ use crate::api::ApiResult;
 use crate::crew::Crew;
 use crate::errors::Errcode;
 use crate::player::Player;
+use crate::ship::cargo::ShipCargo;
 use crate::ship::{Ship, ShipId};
 
 use super::scan::ScanResult;
 use super::{Galaxy, SpaceCoord};
+
+const CARGO_BASE_PRICE: f64 = 2.0;
+// For X units of cargo purshased, price goes from (base ^ n) to (base ^ (n+1))
+const CARGO_PRICE_INCDIV: f64 = 1000.0;
 
 pub type StationId = u16;
 
@@ -24,6 +29,8 @@ pub struct Station {
     pub idle_crew: Crew,
     #[serde(skip)]
     shipyard: Vec<Ship>,
+    #[serde(skip)]
+    pub cargo: ShipCargo,
 }
 
 impl Station {
@@ -33,12 +40,28 @@ impl Station {
             position,
             idle_crew: Crew::default(),
             shipyard: Ship::init_shipyard(position),
+            cargo: ShipCargo::with_capacity(0.0),
         }
     }
 
     // TODO (#27) Allow to build improvements for the scanner
     pub fn scan(&self, galaxy: &Galaxy) -> ScanResult {
         galaxy.scan_sector(&self.position, 0.0)
+    }
+
+    pub fn cargo_price(&self) -> f64 {
+        CARGO_BASE_PRICE.powf(self.cargo.capacity / CARGO_PRICE_INCDIV)
+    }
+
+    pub fn buy_cargo(&mut self, player: &mut Player, amnt: &usize) -> Result<&ShipCargo, Errcode> {
+        let cost = (*amnt as f64) * self.cargo_price();
+        if cost > player.money {
+            return Err(Errcode::NotEnoughMoney(player.money, cost));
+        }
+        player.money -= cost;
+        self.cargo.capacity += *amnt as f64;
+
+        Ok(&self.cargo)
     }
 }
 

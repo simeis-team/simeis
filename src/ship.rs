@@ -11,6 +11,7 @@ use shipstats::ShipStats;
 
 use crate::crew::{Crew, CrewId, CrewMemberType};
 use crate::errors::Errcode;
+use crate::galaxy::station::Station;
 use crate::galaxy::{translation, Galaxy, SpaceCoord};
 
 pub mod cargo;
@@ -160,6 +161,9 @@ impl Ship {
     }
 
     pub fn set_travel(&mut self, travel: Travel) -> Result<TravelCost, Errcode> {
+        let ShipState::Idle = self.state else {
+            return Err(Errcode::ShipNotIdle);
+        };
         let cost = travel.compute_costs(self)?;
         if !cost.have_enough(self) {
             return Err(Errcode::CannotPerformTravel);
@@ -201,6 +205,9 @@ impl Ship {
         &mut self,
         galaxy: &Galaxy,
     ) -> Result<BTreeMap<Resource, f64>, Errcode> {
+        let ShipState::Idle = self.state else {
+            return Err(Errcode::ShipNotIdle);
+        };
         let Some(planet) = galaxy.get_planet(&self.position) else {
             return Err(Errcode::CannotExtractWithoutPlanet);
         };
@@ -228,6 +235,15 @@ impl Ship {
         Ok(extraction)
     }
 
+    pub fn stop_extraction(&mut self) -> Result<(), Errcode> {
+        let ShipState::Extracting(_) = self.state else {
+            return Err(Errcode::ShipNotExtracting);
+        };
+        log::debug!("Ship {} stopped extraction", self.id);
+        self.state = ShipState::Idle;
+        Ok(())
+    }
+
     pub fn update_extract(&mut self, tdelta: f64) -> bool {
         let ShipState::Extracting(ref rates) = self.state else {
             unreachable!();
@@ -237,5 +253,28 @@ impl Ship {
             self.cargo.add_resource(res, *rate * tdelta);
         }
         self.cargo.is_full()
+    }
+
+    pub fn unload_cargo(
+        &mut self,
+        resource: &Resource,
+        amnt: f64,
+        station: &mut Station,
+    ) -> Result<f64, Errcode> {
+        let unloaded = self.cargo.unload(resource, amnt);
+        if unloaded == 0.0 {
+            return Ok(0.0);
+        }
+
+        let added = station.cargo.add_resource(resource, unloaded);
+        if added == 0.0 {
+            self.cargo.add_resource(resource, unloaded);
+            Err(Errcode::CargoFull)
+        } else if added < unloaded {
+            self.cargo.add_resource(resource, unloaded - added);
+            Ok(added)
+        } else {
+            Ok(unloaded)
+        }
     }
 }

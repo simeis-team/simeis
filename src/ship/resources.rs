@@ -13,6 +13,15 @@ pub enum Resource {
 }
 
 impl Resource {
+    pub fn from_str(s: &str) -> Option<Resource> {
+        Some(match s {
+            "stone" => Resource::Stone,
+            "iron" => Resource::Iron,
+            "helium" => Resource::Helium,
+            "ozone" => Resource::Ozone,
+            _ => return None,
+        })
+    }
     pub fn volume(&self) -> f64 {
         match self {
             Resource::Stone => 1.0,

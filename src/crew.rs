@@ -93,6 +93,18 @@ pub enum CrewMemberType {
     Soldier,
 }
 
+impl CrewMemberType {
+    pub fn from_str(s: &str) -> Option<CrewMemberType> {
+        Some(match s {
+            "pilot" => CrewMemberType::Pilot,
+            "trader" => CrewMemberType::Trader,
+            "soldier" => CrewMemberType::Soldier,
+            "operator" => CrewMemberType::Operator,
+            _ => return None,
+        })
+    }
+}
+
 pub fn assign_crew_member(
     id: CrewId,
     station: Arc<RwLock<Station>>,

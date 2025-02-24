@@ -7,7 +7,7 @@ use crate::galaxy::Galaxy;
 use crate::player::{Player, PlayerId, PlayerKey};
 use crate::ship::ShipState;
 
-const ITER_PERIOD: std::time::Duration = std::time::Duration::from_millis(100);
+const ITER_PERIOD: std::time::Duration = std::time::Duration::from_millis(105);
 
 // TODO (#23) Have a global "inflation" rate for all users, that increases over time
 //     Equipment becomes more and more expansive

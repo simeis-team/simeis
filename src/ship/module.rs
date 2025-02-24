@@ -15,6 +15,14 @@ pub enum ShipModuleType {
 }
 
 impl ShipModuleType {
+    pub fn from_str(s: &str) -> Option<ShipModuleType> {
+        Some(match s {
+            "miner" => ShipModuleType::Miner,
+            "gassucker" => ShipModuleType::GasSucker,
+            "cargoext" => ShipModuleType::CargoExtension,
+            _ => return None,
+        })
+    }
     pub fn new_module(self) -> ShipModule {
         ShipModule {
             operator: None,

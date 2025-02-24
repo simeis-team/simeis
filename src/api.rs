@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::DerefMut;
 
 use base64::{prelude::BASE64_STANDARD, Engine};
 use ntex::web::types::{Json, Path};
@@ -6,12 +7,13 @@ use ntex::web::{self, HttpRequest, HttpResponse, ServiceConfig};
 use serde_json::{json, Value};
 use strum::IntoEnumIterator;
 
-use crate::crew::CrewId;
+use crate::crew::{CrewId, CrewMemberType};
 use crate::errors::Errcode;
 use crate::galaxy::station::StationId;
 use crate::player::{PlayerId, PlayerKey, ReqNewPlayer};
 use crate::ship::module::{ShipModuleId, ShipModuleType};
 use crate::ship::navigation::Travel;
+use crate::ship::resources::Resource;
 use crate::ship::ShipId;
 use crate::GameState;
 
@@ -142,16 +144,11 @@ async fn hire_crew(
     req: HttpRequest,
 ) -> impl web::Responder {
     let (station_id, crewtype) = args.as_ref();
-    use crate::crew::CrewMemberType;
+    let Some(crewtype) = CrewMemberType::from_str(crewtype.as_str()) else {
+        return build_response(Err(Errcode::InvalidArgument("crewtype")));
+    };
     let player = get_player!(srv, req);
     let station = get_station!(srv, player, station_id);
-    let crewtype = match crewtype.as_str() {
-        "pilot" => CrewMemberType::Pilot,
-        "operator" => CrewMemberType::Operator,
-        "trader" => CrewMemberType::Trader,
-        "soldier" => CrewMemberType::Soldier,
-        _ => return build_response(Err(Errcode::InvalidArgument("crewtype"))),
-    };
     build_response(crate::crew::hire_crew(player, station, crewtype))
 }
 
@@ -189,11 +186,9 @@ async fn buy_ship_module(
 ) -> impl web::Responder {
     let (station_id, ship_id, modtype) = args.as_ref();
     let player = get_player!(srv, req);
-    let modtype = match modtype.as_str() {
-        "miner" => ShipModuleType::Miner,
-        "gassucker" => ShipModuleType::GasSucker,
-        "cargoext" => ShipModuleType::CargoExtension,
-        _ => return build_response(Err(Errcode::InvalidArgument("modtype"))),
+
+    let Some(modtype) = ShipModuleType::from_str(modtype.as_str()) else {
+        return build_response(Err(Errcode::InvalidArgument("modtype")));
     };
     let mut player = player.write().unwrap();
     build_response(
@@ -205,6 +200,51 @@ async fn buy_ship_module(
                 })
             }),
     )
+}
+
+#[web::get("/station/{station_id}/shop/cargo/buy/{amount}")]
+async fn buy_station_cargo(
+    srv: GameState,
+    args: Path<(StationId, usize)>,
+    req: HttpRequest,
+) -> impl web::Responder {
+    let (id, amnt) = args.as_ref();
+    let player = get_player!(srv, req);
+    let station = get_station!(srv, player, id);
+
+    let mut player = player.write().unwrap();
+    let mut station = station.write().unwrap();
+    build_response(
+        station
+            .buy_cargo(player.deref_mut(), amnt)
+            .map(|v| serde_json::to_value(v).unwrap()),
+    )
+}
+
+#[web::get("/station/{station_id}/shop/cargo/price")]
+async fn get_station_cargo_price(
+    srv: GameState,
+    id: Path<StationId>,
+    req: HttpRequest,
+) -> impl web::Responder {
+    let player = get_player!(srv, req);
+    let station = get_station!(srv, player, id.as_ref());
+    let price = station.read().unwrap().cargo_price();
+    build_response(Ok(serde_json::json!({
+        "price": price,
+    })))
+}
+
+#[web::get("/station/{station_id}/cargo")]
+async fn get_station_cargo(
+    srv: GameState,
+    id: Path<StationId>,
+    req: HttpRequest,
+) -> impl web::Responder {
+    let player = get_player!(srv, req);
+    let station = get_station!(srv, player, id.as_ref());
+    let station = station.read().unwrap();
+    build_response(Ok(serde_json::to_value(&station.cargo).unwrap()))
 }
 
 #[web::get("/ship/{ship_id}")]
@@ -271,6 +311,54 @@ async fn start_extraction(
     )
 }
 
+#[web::get("/ship/{ship_id}/extraction/stop")]
+async fn stop_extraction(
+    srv: GameState,
+    id: Path<ShipId>,
+    req: HttpRequest,
+) -> impl web::Responder {
+    let player = get_player!(srv, req);
+    let mut player = player.write().unwrap();
+    let Some(ship) = player.ships.get_mut(id.as_ref()) else {
+        return build_response(Err(Errcode::ShipNotFound(*id)));
+    };
+    build_response(
+        ship.stop_extraction()
+            .map(|v| serde_json::to_value(v).unwrap()),
+    )
+}
+
+#[web::get("/ship/{ship_id}/unload/{resource}/{amount}")]
+async fn unload_ship_cargo(
+    srv: GameState,
+    args: Path<(ShipId, String, f64)>,
+    req: HttpRequest,
+) -> impl web::Responder {
+    let (id, resource, amnt) = args.as_ref();
+    let Some(resource) = Resource::from_str(resource) else {
+        return build_response(Err(Errcode::InvalidArgument("resource")));
+    };
+
+    let player = get_player!(srv, req);
+    let mut player = player.write().unwrap();
+
+    let Some(ship) = player.ships.get(id) else {
+        return build_response(Err(Errcode::ShipNotFound(*id)));
+    };
+
+    let Some(station) = player.stations.iter().find(|(_, s)| *s == &ship.position) else {
+        return build_response(Err(Errcode::ShipNotInStation));
+    };
+
+    let station = srv.galaxy.get_station(station.1).unwrap();
+    let mut station = station.write().unwrap();
+    let ship = player.ships.get_mut(id).unwrap();
+    build_response(
+        ship.unload_cargo(&resource, *amnt, station.deref_mut())
+            .map(|v| serde_json::json!({ "unloaded": v })),
+    )
+}
+
 #[web::get("/prices/ship_module")]
 async fn get_prices_ship_module() -> impl web::Responder {
     let mut res: HashMap<String, f64> = HashMap::new();
@@ -293,6 +381,11 @@ pub fn configure(srv: &mut ServiceConfig) {
         .service(ask_navigate)
         .service(compute_travel_costs)
         .service(start_extraction)
+        .service(stop_extraction)
+        .service(unload_ship_cargo)
+        .service(get_station_cargo)
+        .service(get_station_cargo_price)
+        .service(buy_station_cargo)
         .service(scan)
         .service(get_player)
         .service(new_player);

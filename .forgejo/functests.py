@@ -453,6 +453,55 @@ class Tester:
         cargoa = self.assert_got(after, "cargo", None)
         assert cargob["usage"] < cargoa["usage"]
 
+        player = self.assert_ok(f"/player/{self.id}")
+        stationid = list(player["stations"].keys())[0]
+        self.assert_error(
+            f"/ship/{shipid}/navigate",
+            method="POST",
+            body=dict(destination=player["stations"][stationid]),
+            errtype="ShipNotIdle",
+        )
+        self.assert_ok(f"/ship/{shipid}/extraction/stop")
+
+    # Uses environment set up by previous test
+    @functest
+    def test_unload_cargo(self):
+        player = self.assert_ok(f"/player/{self.id}")
+        stationid = list(player["stations"].keys())[0]
+        ship = player["ships"][0]
+        shipid = ship["id"]
+
+        cost = self.assert_ok(
+            f"/ship/{shipid}/navigate",
+            method="POST",
+            body=dict(destination=player["stations"][stationid])
+        )
+        time.sleep(cost["duration"] + 0.2)
+
+        resname = list(ship["cargo"]["resources"].keys())[0]
+        resamnt = ship["cargo"]["resources"][resname]
+        resname = resname.lower()
+        self.assert_error(f"/ship/{shipid}/unload/{resname}/{resamnt}", errtype="CargoFull")
+
+        initprice = self.assert_ok(f"/station/{stationid}/shop/cargo/price")
+        initprice = self.assert_got(initprice, "price", 1.0)
+        self.assert_ok(f"/station/{stationid}/shop/cargo/buy/2000")
+        afterprice = self.assert_ok(f"/station/{stationid}/shop/cargo/price")
+        afterprice = self.assert_got(afterprice, "price", None)
+        assert afterprice > initprice
+
+        cargobefore = self.assert_ok(f"/station/{stationid}/cargo")
+        usagebefore = self.assert_got(cargobefore, "usage", 0.0)
+        got = self.assert_ok(f"/ship/{shipid}/unload/{resname}/{resamnt}")
+        self.assert_got(got, "unloaded", resamnt)
+        cargoafter = self.assert_ok(f"/station/{stationid}/cargo")
+        usageafter = self.assert_got(cargoafter, "usage", None)
+        assert usageafter > usagebefore
+
+        shipafter = self.assert_ok(f"/ship/{shipid}")
+        shipcargo = self.assert_got(shipafter, "cargo", None)
+        assert shipcargo["usage"] == 0
+
 def compute_distance(a, b):
     sum = 0
     sum += (b[0] - a[0]) ** 2

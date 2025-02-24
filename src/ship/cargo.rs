@@ -27,15 +27,17 @@ impl ShipCargo {
         0.0
     }
 
-    pub fn add_resource(&mut self, res: &Resource, amnt: f64) {
+    pub fn add_resource(&mut self, res: &Resource, mut amnt: f64) -> f64 {
         log::debug!("Added {amnt} {res:?} to cargo");
-        let add = res.volume() * amnt;
-        if (self.usage + add) > self.capacity {
+        let added = res.volume() * amnt;
+        if self.usage == self.capacity {
+            return 0.0;
+        } else if (self.usage + added) > self.capacity {
+            let overflow = ((self.usage + added) / self.capacity) - 1.0;
+            amnt -= overflow * amnt;
             self.usage = self.capacity;
-        } else if self.usage == self.capacity {
-            return;
         } else {
-            self.usage += add;
+            self.usage += added;
         }
 
         if let Some(stock) = self.resources.get_mut(res) {
@@ -43,9 +45,23 @@ impl ShipCargo {
         } else {
             self.resources.insert(*res, amnt);
         }
+        amnt
     }
 
     pub fn is_full(&self) -> bool {
         self.usage == self.capacity
+    }
+
+    pub fn unload(&mut self, resource: &Resource, amnt: f64) -> f64 {
+        if let Some(got) = self.resources.get_mut(resource) {
+            let unload = got.min(amnt);
+            log::debug!("{got:?} {amnt:?} {unload:?}");
+            *got -= unload;
+            self.usage -= resource.volume() * unload;
+            debug_assert!(self.usage >= 0.0);
+            unload
+        } else {
+            0.0
+        }
     }
 }
