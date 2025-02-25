@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::ops::DerefMut;
+use std::ops::{Deref, DerefMut};
 
 use base64::{prelude::BASE64_STANDARD, Engine};
 use ntex::web::types::{Json, Path};
@@ -18,6 +18,8 @@ use crate::ship::ShipId;
 use crate::GameState;
 
 pub type ApiResult = Result<serde_json::Value, Errcode>;
+
+// TODO (#35) Use query parameters (with ntex::web::types::Query) instead of plain URLs
 
 macro_rules! get_player {
     ($srv:ident, $req:ident) => {{
@@ -150,6 +152,23 @@ async fn hire_crew(
     let player = get_player!(srv, req);
     let station = get_station!(srv, player, station_id);
     build_response(crate::crew::hire_crew(player, station, crewtype))
+}
+
+#[web::get("/station/{station_id}/crew/assign/{crewid}/trading")]
+async fn assign_to_trading(
+    args: Path<(StationId, CrewId)>,
+    srv: GameState,
+    req: HttpRequest,
+) -> impl web::Responder {
+    let (station_id, crew_id) = args.as_ref();
+    let player = get_player!(srv, req);
+    let station = get_station!(srv, player, station_id);
+    let mut station = station.write().unwrap();
+    build_response(
+        station
+            .assign_trader(*crew_id)
+            .map(|_| serde_json::json!({})),
+    )
 }
 
 #[web::get("/station/{station_id}/crew/assign/{crewid}/{shipid}/{modid}")]
@@ -359,7 +378,7 @@ async fn unload_ship_cargo(
     )
 }
 
-#[web::get("/prices/ship_module")]
+#[web::get("/market/ship_module")]
 async fn get_prices_ship_module() -> impl web::Responder {
     let mut res: HashMap<String, f64> = HashMap::new();
     for smod in ShipModuleType::iter() {
@@ -368,11 +387,81 @@ async fn get_prices_ship_module() -> impl web::Responder {
     build_response(Ok(serde_json::to_value(res).unwrap()))
 }
 
+#[web::get("/market/prices")]
+async fn get_resource_prices(srv: GameState) -> impl web::Responder {
+    let market = srv.market.read().unwrap();
+    build_response(Ok(serde_json::to_value(market.deref()).unwrap()))
+}
+
+#[web::get("/market/{station_id}/buy/{resource}/{amnt}")]
+async fn buy_resource(
+    srv: GameState,
+    args: Path<(StationId, String, f64)>,
+    req: HttpRequest,
+) -> impl web::Responder {
+    let (station_id, resource, amnt) = args.as_ref();
+    let Some(resource) = Resource::from_str(resource) else {
+        return build_response(Err(Errcode::InvalidArgument("resource")));
+    };
+    let player = get_player!(srv, req);
+    let station = get_station!(srv, player, station_id);
+    let mut player = player.write().unwrap();
+    let mut station = station.write().unwrap();
+    let mut market = srv.market.write().unwrap();
+    build_response(
+        station
+            .buy_resource(&resource, *amnt, player.deref_mut(), market.deref_mut())
+            .map(|tx| serde_json::to_value(tx).unwrap()),
+    )
+}
+
+#[web::get("/market/{station_id}/sell/{resource}/{amnt}")]
+async fn sell_resource(
+    srv: GameState,
+    args: Path<(StationId, String, f64)>,
+    req: HttpRequest,
+) -> impl web::Responder {
+    let (station_id, resource, amnt) = args.as_ref();
+    let Some(resource) = Resource::from_str(resource) else {
+        return build_response(Err(Errcode::InvalidArgument("resource")));
+    };
+    let player = get_player!(srv, req);
+    let station = get_station!(srv, player, station_id);
+    let mut player = player.write().unwrap();
+    let mut station = station.write().unwrap();
+    let mut market = srv.market.write().unwrap();
+    build_response(
+        station
+            .sell_resource(&resource, *amnt, player.deref_mut(), market.deref_mut())
+            .map(|tx| serde_json::to_value(tx).unwrap()),
+    )
+}
+
+#[web::get("/market/{station_id}/fee_rate")]
+async fn get_fee_rate(
+    srv: GameState,
+    station_id: Path<StationId>,
+    req: HttpRequest,
+) -> impl web::Responder {
+    let player = get_player!(srv, req);
+    let station = get_station!(srv, player, station_id.as_ref());
+    let station = station.read().unwrap();
+    let Some(trader) = station.trader else {
+        return build_response(Err(Errcode::NoTrader));
+    };
+    let cm = station.crew.0.get(&trader).unwrap();
+    let fee = crate::market::fee_rate(cm.rank);
+    build_response(Ok(serde_json::json!({
+        "fee_rate": fee,
+    })))
+}
+
 pub fn configure(srv: &mut ServiceConfig) {
     srv.service(ping)
         .service(hire_crew)
         .service(idle_crew)
         .service(assign_crew)
+        .service(assign_to_trading)
         .service(get_ship_status)
         .service(shipyard_buy)
         .service(get_prices_ship_module)
@@ -386,6 +475,10 @@ pub fn configure(srv: &mut ServiceConfig) {
         .service(get_station_cargo)
         .service(get_station_cargo_price)
         .service(buy_station_cargo)
+        .service(get_fee_rate)
+        .service(get_resource_prices)
+        .service(buy_resource)
+        .service(sell_resource)
         .service(scan)
         .service(get_player)
         .service(new_player);

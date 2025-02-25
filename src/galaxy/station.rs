@@ -4,10 +4,12 @@ use serde::Serialize;
 use serde_json::json;
 
 use crate::api::ApiResult;
-use crate::crew::Crew;
+use crate::crew::{Crew, CrewId};
 use crate::errors::Errcode;
+use crate::market::{Market, MarketTx};
 use crate::player::Player;
 use crate::ship::cargo::ShipCargo;
+use crate::ship::resources::Resource;
 use crate::ship::{Ship, ShipId};
 
 use super::scan::ScanResult;
@@ -28,9 +30,13 @@ pub struct Station {
     #[serde(skip)]
     pub idle_crew: Crew,
     #[serde(skip)]
+    pub crew: Crew,
+    #[serde(skip)]
     shipyard: Vec<Ship>,
     #[serde(skip)]
     pub cargo: ShipCargo,
+    #[serde(skip)]
+    pub trader: Option<CrewId>,
 }
 
 impl Station {
@@ -39,8 +45,10 @@ impl Station {
             id,
             position,
             idle_crew: Crew::default(),
+            crew: Crew::default(),
             shipyard: Ship::init_shipyard(position),
             cargo: ShipCargo::with_capacity(0.0),
+            trader: None,
         }
     }
 
@@ -62,6 +70,67 @@ impl Station {
         self.cargo.capacity += *amnt as f64;
 
         Ok(&self.cargo)
+    }
+
+    pub fn assign_trader(&mut self, id: CrewId) -> Result<(), Errcode> {
+        let Some(cm) = self.idle_crew.0.remove(&id) else {
+            return Err(Errcode::CrewMemberNotIdle(id));
+        };
+
+        self.crew.0.insert(id, cm);
+        self.trader = Some(id);
+        Ok(())
+    }
+
+    pub fn buy_resource(
+        &mut self,
+        resource: &Resource,
+        amnt: f64,
+        player: &mut Player,
+        market: &mut Market,
+    ) -> Result<MarketTx, Errcode> {
+        let Some(trader) = self.trader else {
+            return Err(Errcode::NoTrader);
+        };
+        let cm = self.crew.0.get(&trader).unwrap();
+        let can_cargo = self.cargo.space_for(resource);
+        let amnt = amnt.min(can_cargo);
+        if amnt == 0.0 {
+            return Err(Errcode::BuyNothing);
+        }
+
+        let tx = market.buy(cm, resource, amnt);
+        player.money -= tx.removed_money.unwrap();
+        let (r, a) = tx.added_cargo.unwrap();
+        self.cargo.add_resource(&r, a);
+        Ok(tx)
+    }
+
+    pub fn sell_resource(
+        &mut self,
+        resource: &Resource,
+        amnt: f64,
+        player: &mut Player,
+        market: &mut Market,
+    ) -> Result<MarketTx, Errcode> {
+        let Some(trader) = self.trader else {
+            return Err(Errcode::NoTrader);
+        };
+        let cm = self.crew.0.get(&trader).unwrap();
+        let Some(can_cargo) = self.cargo.resources.get(resource) else {
+            return Err(Errcode::SellNothing);
+        };
+        let amnt = amnt.min(*can_cargo);
+        if amnt == 0.0 {
+            return Err(Errcode::SellNothing);
+        }
+
+        let tx = market.sell(cm, resource, amnt);
+        player.money += tx.added_money.unwrap();
+        let (r, a) = tx.removed_cargo.unwrap();
+        let unloaded = self.cargo.unload(&r, a);
+        debug_assert_eq!(unloaded, a);
+        Ok(tx)
     }
 }
 

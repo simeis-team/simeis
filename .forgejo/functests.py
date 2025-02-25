@@ -381,7 +381,7 @@ class Tester:
             method="POST",
             body=dict(destination=(shippos[0], shippos[1], shippos[2]))
         )
-        time.sleep(cost["duration"])
+        time.sleep(cost["duration"] + 0.2)
 
         back = self.assert_ok(f"/ship/{ship_id}")
         self.addtrace("start", afterpos, "now", back["position"])
@@ -501,6 +501,61 @@ class Tester:
         shipafter = self.assert_ok(f"/ship/{shipid}")
         shipcargo = self.assert_got(shipafter, "cargo", None)
         assert shipcargo["usage"] == 0
+
+    # Uses environment set up by previous test
+    @functest
+    def test_market_buy_sell(self):
+        player = self.assert_ok(f"/player/{self.id}")
+        stationid = list(player["stations"].keys())[0]
+        cargo = self.assert_ok(f"/station/{self.station}/cargo")
+        resname = list(cargo["resources"].keys())[0]
+        resamnt = cargo["resources"][resname]
+        resname = resname.lower()
+
+        self.assert_error(f"/market/{self.station}/sell/{resname}/{resamnt}", errtype="NoTrader")
+
+        trader = self.assert_ok(f"/station/{self.station}/crew/hire/trader")
+        traderid = self.assert_got(trader, "id", None)
+        self.assert_ok(f"/station/{self.station}/crew/assign/{traderid}/trading")
+
+        self.assert_error(
+            f"/market/{self.station}/buy/{resname}/0",
+            errtype="BuyNothing",
+        )
+
+        player = self.assert_ok(f"/player/{self.id}")
+        beforemoney = self.assert_got(player, "money", None)
+        tx = self.assert_ok(f"/market/{self.station}/sell/{resname}/{resamnt}")
+        afterplayer = self.assert_ok(f"/player/{self.id}")
+        aftermoney = self.assert_got(afterplayer, "money", None)
+        self.addtrace(
+            "Should be the same:",
+            aftermoney,
+            beforemoney + tx["added_money"],
+            "Difference: ",
+            aftermoney - (beforemoney + tx["added_money"])
+        )
+        assert round(aftermoney, 4) == round(beforemoney + tx["added_money"], 4)
+
+        cargo = self.assert_ok(f"/station/{self.station}/cargo")
+        self.assert_got(cargo, "resources", {resname.capitalize(): 0.0})
+        self.assert_got(cargo, "usage", 0)
+
+        self.assert_error(
+            f"/market/{self.station}/sell/{resname}/{resamnt}",
+            errtype="SellNothing",
+        )
+
+        fee = self.assert_ok(f"/market/{self.station}/fee_rate")
+        feerate = self.assert_got(fee, "fee_rate", 0.1)
+        stone_tot = 50 / (1 - feerate)
+        tx = self.assert_ok(f"/market/{self.station}/buy/stone/{stone_tot}")
+        assert self.assert_got(tx, "removed_money", None) > 0
+        self.assert_got(tx, "added_cargo", ['Stone', 50])
+
+        cargo = self.assert_ok(f"/station/{self.station}/cargo")
+        self.assert_got(cargo, "resources", {"Stone": 50})
+        self.assert_got(cargo, "usage", 50)
 
 def compute_distance(a, b):
     sum = 0

@@ -8,8 +8,7 @@ use super::resources::Resource;
 pub struct ShipCargo {
     pub capacity: f64,
     pub usage: f64,
-
-    resources: BTreeMap<Resource, f64>,
+    pub resources: BTreeMap<Resource, f64>,
 }
 
 impl ShipCargo {
@@ -63,5 +62,11 @@ impl ShipCargo {
         } else {
             0.0
         }
+    }
+
+    // Compute how much of a resource we can store (based on its volume)
+    pub fn space_for(&self, resource: &Resource) -> f64 {
+        let capleft = self.capacity - self.usage;
+        capleft / resource.volume()
     }
 }

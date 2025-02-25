@@ -19,6 +19,7 @@
         export CARGO_HOME=$PWD/.cargohome
         export RUST_LOG="ntex=warn,debug"
         cargo build --features testing
+        rm -f /tmp/simeis_logs
         ./target/debug/simeis 1>/tmp/simeis_logs 2>&1 &
         sleep 1
 
@@ -33,7 +34,6 @@
 
           echo "Server logs:"
           tail -n 20 /tmp/simeis_logs
-          rm /tmp/simeis_logs
           exit 1;
         fi
 
