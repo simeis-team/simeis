@@ -2,6 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use strum::{EnumString, IntoStaticStr};
 
+const WAGE_INC_RANK_POWF: f64 = 2.2;
+const RANK_PRICE_WAGE_MULT: f64 = 1500.0;
+
 pub type CrewId = u32;
 
 #[derive(Debug, Deserialize, Default, Serialize)]
@@ -35,8 +38,12 @@ impl CrewMember {
             CrewMemberType::Trader => 2.5,
             CrewMemberType::Soldier => 1.5,
         };
-        // TODO (#17)    Make the wage increase faster than rank
-        base * (self.rank as f64)
+        base * (self.rank as f64).powf(WAGE_INC_RANK_POWF)
+    }
+
+    #[inline]
+    pub fn price_next_rank(&self) -> f64 {
+        self.wage() * RANK_PRICE_WAGE_MULT
     }
 }
 

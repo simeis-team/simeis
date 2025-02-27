@@ -56,8 +56,8 @@ impl ShipCargo {
             let unload = got.min(amnt);
             log::debug!("{got:?} {amnt:?} {unload:?}");
             *got -= unload;
-            self.usage -= resource.volume() * unload;
-            debug_assert!(self.usage >= 0.0);
+            self.usage = (self.usage - (resource.volume() * unload)).max(0.0);
+            self.usage = (self.usage * 1000.0).round() / 1000.0;
             unload
         } else {
             0.0

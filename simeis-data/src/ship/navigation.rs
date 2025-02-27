@@ -17,6 +17,9 @@ impl Travel {
     }
 
     pub fn compute_costs(&self, ship: &Ship) -> Result<TravelCost, Errcode> {
+        if ship.pilot.is_none() {
+            return Err(Errcode::NoPilotAssigned);
+        }
         let distance = get_distance(&ship.position, &self.destination);
         if distance == 0.0 {
             return Err(Errcode::NullDistance);

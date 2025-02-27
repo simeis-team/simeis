@@ -5,7 +5,6 @@ use simeis_data::game::Game;
 mod api;
 mod crew;
 mod player;
-mod station;
 
 pub type GameState = ntex::web::types::State<Game>;
 

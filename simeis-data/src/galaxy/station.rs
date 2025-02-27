@@ -146,7 +146,7 @@ impl Station {
         market: &mut Market,
     ) -> Result<MarketTx, Errcode> {
         let Some(trader) = self.trader else {
-            return Err(Errcode::NoTrader);
+            return Err(Errcode::NoTraderAssigned);
         };
         let cm = self.crew.0.get(&trader).unwrap();
         let can_cargo = self.cargo.space_for(resource);
@@ -170,7 +170,7 @@ impl Station {
         market: &mut Market,
     ) -> Result<MarketTx, Errcode> {
         let Some(trader) = self.trader else {
-            return Err(Errcode::NoTrader);
+            return Err(Errcode::NoTraderAssigned);
         };
         let cm = self.crew.0.get(&trader).unwrap();
         log::debug!("{:?}", self.cargo);

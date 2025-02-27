@@ -2,9 +2,10 @@ use rand::RngCore;
 use std::collections::BTreeMap;
 use std::hash::{DefaultHasher, Hasher};
 
+use crate::crew::CrewId;
 use crate::errors::Errcode;
 use crate::galaxy::station::{Station, StationId};
-use crate::galaxy::SpaceCoord;
+use crate::galaxy::{Galaxy, SpaceCoord};
 use crate::ship::module::{ShipModuleId, ShipModuleType};
 use crate::ship::upgrade::ShipUpgrade;
 use crate::ship::{Ship, ShipId};
@@ -19,7 +20,7 @@ pub type PlayerKey = [u8; 128];
 pub struct Player {
     pub id: PlayerId,
     pub key: PlayerKey,
-    lost: bool,
+    pub lost: bool,
 
     pub name: String,
     pub money: f64,
@@ -60,9 +61,15 @@ impl Player {
         }
     }
 
-    pub fn update_wages(&mut self, station: &Station) {
+    // SAFETY NOTE Only use this function when a &mut Station is NOT present, or deadlock
+    pub fn update_wages(&mut self, galaxy: &Galaxy) {
         self.costs = 0.0;
-        self.costs += station.idle_crew.sum_wages();
+        for coord in self.stations.values() {
+            let station = galaxy.get_station(coord).unwrap();
+            let station = station.read().unwrap();
+            self.costs += station.crew.sum_wages();
+            self.costs += station.idle_crew.sum_wages();
+        }
         self.costs += self
             .ships
             .values()
@@ -76,6 +83,37 @@ impl Player {
             self.lost = true;
             // TODO (#19)  What to do with its resources, ships, etc...
         }
+    }
+
+    pub fn buy_ship(&mut self, station: &mut Station, id: ShipId) -> Result<ShipId, Errcode> {
+        let ship_opt = {
+            let mut data = None;
+            for (n, ship) in station.shipyard.iter().enumerate() {
+                if ship.id == id {
+                    data = Some((n, ship.compute_price()));
+                }
+            }
+            data
+        };
+
+        let Some((index, price)) = ship_opt else {
+            return Err(Errcode::ShipNotFound(id));
+        };
+
+        if price > self.money {
+            return Err(Errcode::NotEnoughMoney(self.money, price));
+        }
+
+        let mut ship = station.shipyard.remove(index);
+        let ship_id = ship.id;
+        ship.update_perf_stats();
+        ship.fuel_tank = ship.fuel_tank_capacity;
+        self.money -= price;
+        self.ships.insert(id, ship);
+
+        let pos = station.position;
+        station.shipyard.push(Ship::random(pos));
+        Ok(ship_id)
     }
 
     pub fn buy_ship_module(
@@ -151,5 +189,49 @@ impl Player {
         module.rank += 1;
 
         Ok((price, module.rank))
+    }
+
+    pub fn upgrade_crew_rank(
+        &mut self,
+        station: &Station,
+        ship_id: &ShipId,
+        crew_id: &CrewId,
+    ) -> Result<(f64, u8), Errcode> {
+        let Some(ship) = self.ships.get_mut(ship_id) else {
+            return Err(Errcode::ShipNotFound(*ship_id));
+        };
+        if ship.position != station.position {
+            return Err(Errcode::ShipNotInStation);
+        }
+        let res = {
+            let Some(ref mut cm) = ship.crew.0.get_mut(crew_id) else {
+                return Err(Errcode::CrewMemberNotFound(*crew_id));
+            };
+
+            let price = cm.price_next_rank();
+            if price > self.money {
+                return Err(Errcode::NotEnoughMoney(self.money, price));
+            }
+
+            self.money -= price;
+            cm.rank += 1;
+            (price, cm.rank)
+        };
+        ship.update_perf_stats();
+        Ok(res)
+    }
+
+    pub fn upgrade_station_trader(&mut self, station: &mut Station) -> Result<(f64, u8), Errcode> {
+        let Some(trader_id) = station.trader else {
+            return Err(Errcode::NoTraderAssigned);
+        };
+        let cm = station.crew.0.get_mut(&trader_id).unwrap();
+        let price = cm.price_next_rank();
+        if price > self.money {
+            return Err(Errcode::NotEnoughMoney(self.money, price));
+        }
+        self.money -= price;
+        cm.rank += 1;
+        Ok((price, cm.rank))
     }
 }

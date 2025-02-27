@@ -19,11 +19,14 @@ pub enum Errcode {
     ShipNotInStation,
     WrongCrewType(crate::crew::CrewMemberType),
     CargoFull,
-    NoTrader,
+    NoTraderAssigned,
+    NoPilotAssigned,
     BuyNothing,
     SellNothing,
     NoFuelInCargo,
     NoHullPlateInCargo,
+    CrewMemberNotFound(crate::crew::CrewId),
+    PlayerLost,
 }
 
 impl Errcode {
@@ -56,11 +59,14 @@ impl Errcode {
             Errcode::CargoFull => "The cargo is full".to_string(),
             Errcode::ShipNotIdle => "The ship is already occupied with a task".to_string(),
             Errcode::ShipNotExtracting => "This ship is not extracting".to_string(),
-            Errcode::NoTrader => "This station doesn't have a trader assigned".to_string(),
+            Errcode::NoTraderAssigned => "This station doesn't have a trader assigned".to_string(),
             Errcode::BuyNothing => "Either you attempted to BUY 0 units, or you don't have enough space in cargo to hold the resources".to_string(),
             Errcode::SellNothing => "Either you attempted to SELL 0 units, or you don't have any unit of this resource in your cargo".to_string(),
             Errcode::NoFuelInCargo => "You don't have any fuel in the station cargo".to_string(),
             Errcode::NoHullPlateInCargo => "You don't have any hull plate in the station cargo".to_string(),
+            Errcode::CrewMemberNotFound(id) => format!("Crew member of id {id} not found"),
+            Errcode::PlayerLost => "This player lost the game and cannot play anymore".to_string(),
+            Errcode::NoPilotAssigned => "No pilot is assigned on this ship".to_string(),
         }
     }
 }

@@ -41,11 +41,11 @@ impl Resource {
     #[inline]
     pub const fn base_price(&self) -> f64 {
         match self {
-            Resource::Stone => 3.0,
-            Resource::Iron => 8.0,
+            Resource::Stone => 2.0,
+            Resource::Iron => 5.0,
 
-            Resource::Helium => 3.0,
-            Resource::Ozone => 8.0,
+            Resource::Helium => 2.0,
+            Resource::Ozone => 5.0,
 
             Resource::Fuel => 5.0,
             Resource::HullPlate => 4.0,
@@ -81,11 +81,11 @@ impl Resource {
 
     pub fn extraction_difficulty(&self) -> f64 {
         match self {
-            Resource::Stone => 0.08,
-            Resource::Iron => 0.5,
+            Resource::Stone => 0.25,
+            Resource::Iron => 2.0,
 
-            Resource::Helium => 0.08,
-            Resource::Ozone => 0.5,
+            Resource::Helium => 0.25,
+            Resource::Ozone => 2.0,
 
             // All the things that are only crafted
             _ => unreachable!("Extraction difficulty on crafted resources"),

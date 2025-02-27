@@ -36,6 +36,9 @@ macro_rules! get_player {
         };
         let players = $srv.players.read().unwrap();
         let player = players.get(id).unwrap();
+        if player.read().unwrap().lost {
+            return build_response(Err(Errcode::PlayerLost));
+        }
         player.clone()
     }};
 }
@@ -113,6 +116,25 @@ async fn get_player(srv: GameState, id: Path<PlayerId>, req: HttpRequest) -> imp
     build_response(crate::player::get_player(srv, *id, key))
 }
 
+#[web::get("/station/{station_id}")]
+async fn get_station_status(
+    srv: GameState,
+    id: Path<StationId>,
+    req: HttpRequest,
+) -> impl web::Responder {
+    let player = get_player!(srv, req);
+    let station = get_station!(srv, player, id.as_ref());
+    let station = station.read().unwrap();
+    build_response(Ok(serde_json::json!({
+        "id": station.id,
+        "position": station.position,
+        "crew": station.crew,
+        "cargo": station.cargo,
+        "idle_crew": station.idle_crew,
+        "trader": station.trader,
+    })))
+}
+
 #[web::get("/station/{station_id}/shipyard/list")]
 async fn list_shipyard_ships(
     srv: GameState,
@@ -121,7 +143,20 @@ async fn list_shipyard_ships(
 ) -> impl web::Responder {
     let player = get_player!(srv, req);
     let station = get_station!(srv, player, id.as_ref());
-    build_response(crate::station::list_shipyard_ships(station))
+    let station = station.read().unwrap();
+    let mut ships = vec![];
+    for ship in station.shipyard.iter() {
+        ships.push(serde_json::json!({
+            "id": ship.id,
+            "modules": ship.modules,
+            "reactor_power": ship.reactor_power,
+            "cargo_capacity": ship.cargo.capacity,
+            "fuel_tank_capacity": ship.fuel_tank_capacity,
+            "hull_decay_capacity": ship.hull_decay_capacity,
+            "price": ship.compute_price(),
+        }));
+    }
+    build_response(Ok(serde_json::json!({ "ships": ships })))
 }
 
 #[web::get("/station/{station_id}/shipyard/buy/{id}")]
@@ -133,7 +168,13 @@ async fn shipyard_buy_ship(
     let (station_id, ship_id) = args.as_ref();
     let player = get_player!(srv, req);
     let station = get_station!(srv, player, station_id);
-    build_response(crate::station::buy_ship(player, station, *ship_id))
+    let mut player = player.write().unwrap();
+    let mut station = station.write().unwrap();
+    build_response(
+        player
+            .buy_ship(&mut station, *ship_id)
+            .map(|v| serde_json::json!({ "shipId": v, })),
+    )
 }
 
 #[web::get("/station/{station_id}/shipyard/upgrade")]
@@ -179,13 +220,6 @@ async fn shipyard_buy_upgrade(
     )
 }
 
-#[web::get("/station/{station_id}/crew/idle")]
-async fn idle_crew(srv: GameState, id: Path<StationId>, req: HttpRequest) -> impl web::Responder {
-    let player = get_player!(srv, req);
-    let station = get_station!(srv, player, id.as_ref());
-    build_response(crate::station::get_idle_crew(station))
-}
-
 #[web::get("/station/{station_id}/crew/hire/{crewtype}")]
 async fn hire_crew(
     srv: GameState,
@@ -198,7 +232,77 @@ async fn hire_crew(
     };
     let player = get_player!(srv, req);
     let station = get_station!(srv, player, station_id);
-    build_response(crate::crew::hire_crew(player, station, crewtype))
+    build_response(crate::crew::hire_crew(
+        &srv.galaxy,
+        player,
+        station,
+        crewtype,
+    ))
+}
+
+#[web::get("/station/{station_id}/crew/upgrade/ship/{ship_id}")]
+async fn get_crew_upgrades(
+    srv: GameState,
+    args: Path<(StationId, ShipId)>,
+    req: HttpRequest,
+) -> impl web::Responder {
+    let (station_id, ship_id) = args.as_ref();
+    let player = get_player!(srv, req);
+    let station = get_station!(srv, player, station_id);
+    let player = player.read().unwrap();
+    let Some(ship) = player.ships.get(ship_id) else {
+        return build_response(Err(Errcode::ShipNotFound(*ship_id)));
+    };
+    if ship.position != station.read().unwrap().position {
+        return build_response(Err(Errcode::ShipNotInStation));
+    }
+
+    let mut res = BTreeMap::new();
+    for (cid, cm) in ship.crew.0.iter() {
+        res.insert(
+            cid,
+            serde_json::json!({
+                "member-type": cm.member_type,
+                "rank": cm.rank,
+                "price": cm.price_next_rank(),
+            }),
+        );
+    }
+    build_response(Ok(serde_json::to_value(res).unwrap()))
+}
+
+#[web::get("/station/{station_id}/crew/upgrade/ship/{ship_id}/{crew_id}")]
+async fn buy_crew_upgrade(
+    srv: GameState,
+    args: Path<(StationId, ShipId, CrewId)>,
+    req: HttpRequest,
+) -> impl web::Responder {
+    let (station_id, ship_id, crew_id) = args.as_ref();
+    let player = get_player!(srv, req);
+    let station = get_station!(srv, player, station_id);
+    let mut player = player.write().unwrap();
+    let station = station.read().unwrap();
+    let res = player.upgrade_crew_rank(&station, ship_id, crew_id);
+    if res.is_ok() {
+        player.update_wages(&srv.galaxy);
+    }
+    build_response(res.map(|(p, r)| serde_json::json!({ "new-rank": r, "cost": p})))
+}
+
+#[web::get("/station/{station_id}/crew/upgrade/station/trader")]
+async fn upgrade_station_trader(
+    station_id: Path<StationId>,
+    srv: GameState,
+    req: HttpRequest,
+) -> impl web::Responder {
+    let player = get_player!(srv, req);
+    let station = get_station!(srv, player, station_id.as_ref());
+    let mut player = player.write().unwrap();
+    let res = player.upgrade_station_trader(station.write().unwrap().deref_mut());
+    if res.is_ok() {
+        player.update_wages(&srv.galaxy);
+    }
+    build_response(res.map(|(p, r)| serde_json::json!({ "new-rank": r, "cost": p })))
 }
 
 #[web::get("/station/{station_id}/crew/assign/{crewid}/trading")]
@@ -381,22 +485,8 @@ async fn buy_station_cargo(
     )
 }
 
-#[web::get("/station/{station_id}/shop/cargo/price")]
-async fn get_station_cargo_price(
-    srv: GameState,
-    id: Path<StationId>,
-    req: HttpRequest,
-) -> impl web::Responder {
-    let player = get_player!(srv, req);
-    let station = get_station!(srv, player, id.as_ref());
-    let price = station.read().unwrap().cargo_price();
-    build_response(Ok(serde_json::json!({
-        "price": price,
-    })))
-}
-
-#[web::get("/station/{station_id}/cargo")]
-async fn get_station_cargo(
+#[web::get("/station/{station_id}/upgrades")]
+async fn get_station_upgrades(
     srv: GameState,
     id: Path<StationId>,
     req: HttpRequest,
@@ -404,7 +494,15 @@ async fn get_station_cargo(
     let player = get_player!(srv, req);
     let station = get_station!(srv, player, id.as_ref());
     let station = station.read().unwrap();
-    build_response(Ok(serde_json::to_value(&station.cargo).unwrap()))
+    let cargoprice = station.cargo_price();
+    let traderprice = station.trader.map(|trader| {
+        let cm = station.crew.0.get(&trader).unwrap();
+        cm.price_next_rank()
+    });
+    build_response(Ok(serde_json::json!({
+        "cargo-expansion": cargoprice,
+        "trader-upgrade": traderprice,
+    })))
 }
 
 #[web::get("/station/{station_id}/refuel/{ship_id}")]
@@ -624,7 +722,7 @@ async fn get_fee_rate(
     let station = get_station!(srv, player, station_id.as_ref());
     let station = station.read().unwrap();
     let Some(trader) = station.trader else {
-        return build_response(Err(Errcode::NoTrader));
+        return build_response(Err(Errcode::NoTraderAssigned));
     };
     let cm = station.crew.0.get(&trader).unwrap();
     let fee = fee_rate(cm.rank);
@@ -636,7 +734,9 @@ async fn get_fee_rate(
 pub fn configure(srv: &mut ServiceConfig) {
     srv.service(ping)
         .service(hire_crew)
-        .service(idle_crew)
+        .service(get_crew_upgrades)
+        .service(buy_crew_upgrade)
+        .service(upgrade_station_trader)
         .service(assign_pilot)
         .service(assign_operator)
         .service(assign_trader)
@@ -655,8 +755,8 @@ pub fn configure(srv: &mut ServiceConfig) {
         .service(start_extraction)
         .service(stop_extraction)
         .service(unload_ship_cargo)
-        .service(get_station_cargo)
-        .service(get_station_cargo_price)
+        .service(get_station_status)
+        .service(get_station_upgrades)
         .service(buy_station_cargo)
         .service(refuel_ship)
         .service(repair_ship)

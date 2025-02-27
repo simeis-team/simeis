@@ -8,7 +8,8 @@ use crate::{crew::CrewMember, ship::resources::Resource};
 
 const MAX_AVG_AMPL: f64 = 5.0 / 100.0;
 pub const MARKET_CHANGE_SEC: f64 = 20.0;
-const BASE_FEE_RATE: f64 = 10.0 / 100.0;
+const BASE_FEE_RATE: f64 = 20.0 / 100.0;
+const FEE_RATE_DEC_POWF: f64 = 1.3;
 
 // Buying 10000 worth of a resource can increase the price between 15% and 20%
 const PRICE_INC_DIV: f64 = 10000.0;
@@ -17,7 +18,7 @@ const PRICE_INC_MIN_RATIO: f64 = 75.0 / 100.0;
 
 #[inline]
 pub fn fee_rate(rank: u8) -> f64 {
-    BASE_FEE_RATE / (rank as f64)
+    BASE_FEE_RATE / (rank as f64).powf(FEE_RATE_DEC_POWF)
 }
 
 #[derive(Serialize)]
