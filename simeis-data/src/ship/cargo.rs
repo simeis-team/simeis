@@ -12,7 +12,7 @@ pub struct ShipCargo {
 }
 
 impl ShipCargo {
-    pub fn with_capacity(cap: f64) -> ShipCargo {
+    pub const fn with_capacity(cap: f64) -> ShipCargo {
         ShipCargo {
             usage: 0.0,
             capacity: cap,

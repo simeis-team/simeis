@@ -12,8 +12,6 @@ import urllib.request
 class SimeisError(Exception):
     pass
 
-# TODO    IMPORTANT    Fixup this code (setup client, buy / sell, check cargo, etc...)
-
 # Théorème de Pythagore pour récupérer la distance entre 2 points dans l'espace 3D
 def get_dist(a, b):
     return math.sqrt(((a[0] - b[0]) ** 2) + ((a[1] - b[1]) ** 2) + ((a[2] - b[2]) ** 2))
@@ -58,27 +56,42 @@ class Game:
 
     def disp_status(self):
         status = game.get("/player/" + str(game.pid))
-        print("[*] Current status: {} credits, time left before lost: {} secs".format(
-            round(status["money"], 2), int(status["money"] / status["costs"]),
+        print("[*] Current status: {} credits, costs: {}, time left before lost: {} secs".format(
+            round(status["money"], 2), round(status["costs"], 2), int(status["money"] / status["costs"]),
         ))
 
     # If we have a file containing the player ID and key, use it
     # If not, let's create a new player
     # If the player has lost, print an error message
-    def setup_player(self, username):
+    def setup_player(self, username, force_register=False):
+        # Sanitize the username, remove any symbols
         username = "".join([c for c in username if c in string.ascii_letters + string.digits]).lower()
-        if not os.path.isfile(f"./{username}.json"):
+
+        # If we don't have any existing account
+        if force_register or not os.path.isfile(f"./{username}.json"):
             player = self.get(f"/player/new/{username}")
-            with open("./simeis.json", "w") as f:
+            with open(f"./{username}.json", "w") as f:
                 json.dump(player, f, indent=2)       
             print(f"[*] Created player {username}")
             self.player = player
+
+        # If an account already exists
         else:
-            with open("./simeis.json", "r") as f:
+            with open(f"./{username}.json", "r") as f:
                 self.player = json.load(f)
             print(f"[*] Loaded data for player {username}")
 
-        player = self.get("/player/{}".format(self.player["playerId"]))
+        # Try to get the profile
+        try:
+            player = self.get("/player/{}".format(self.player["playerId"]))
+
+        # If we fail, that must be that the player doesn't exist on the server
+        except SimeisError:
+            # And so we retry but forcing to register a new account
+            return self.setup_player(username, force_register=True)
+
+        # If the player already failed, we must reset the server
+        # Or recreate an account with a new nickname
         if player["money"] <= 0.0:
             print("!!! Player already lost, please restart the server to reset the game")
             sys.exit(0)
@@ -129,24 +142,39 @@ class Game:
     def ship_repair(self, sid):
         ship = self.get(f"/ship/{sid}")
         req = int(ship["hull_decay"])
+
+        # No need for any reparation
         if req == 0:
             return
-        bought = self.get(f"/market/{self.sta}/buy/hullplate/{req}")
+
+        # In case we don't have enough hull plates in stock
+        if station["resources"]["HullPlate"] < req:
+            need = req - station["resources"]["HullPlate"]
+            bought = self.get(f"/market/{self.sta}/buy/hullplate/{need}")
+            print(f"[*] Bought {need} of hull plates for", bought["removed_money"])
+
+        # Use the plates in stock to repair the ship
         repair = self.get(f"/station/{self.sta}/repair/{self.sid}")
-        print("[*] Repaired {} hull plates on the ship for {} credits".format(
-            repair["added-hull"],
-            bought["removed_money"],
-        ))
+        print("[*] Repaired {} hull plates on the ship".format(repair["added-hull"]))
 
     # Refuel the ship:    Buy the fuel, then ask for a refill
     def ship_refuel(self, sid):
         ship = self.get(f"/ship/{sid}")
         req = int(ship["fuel_tank_capacity"] - ship["fuel_tank"])
+
+        # No need for any refuel
         if req == 0:
             return
-        bought = self.get(f"/market/{self.sta}/buy/fuel/{req}")
+
+        # In case we don't have enough fuel in stock
+        if station["resources"]["Fuel"] < req:
+            need = req - station["resources"]["Fuel"]
+            bought = self.get(f"/market/{self.sta}/buy/Fuel/{need}")
+            print(f"[*] Bought {need} of fuel for", bought["removed_money"])
+
+        # Use the fuel in stock to refill the ship
         refuel = self.get(f"/station/{self.sta}/refuel/{self.sid}")
-        print("[*] Refuelled {} hull plates on the ship for {} credits".format(
+        print("[*] Refilled {} fuel on the ship for {} credits".format(
             refuel["added-fuel"],
             bought["removed_money"],
         ))

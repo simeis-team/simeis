@@ -24,7 +24,7 @@ const PILOT_FUEL_SHARE: u8 = 5; // Rank 10 = 4/5 fuel consumption
 const HULL_USAGE_BASE: f64 = 5.0 / 100.0;
 
 const FUEL_TANK_CAP_PRICE: f64 = 3.0;
-const CARGO_CAP_PRICE: f64 = 10.0;
+const CARGO_CAP_PRICE: f64 = 2.35;
 const HULL_DECAY_CAP_PRICE: f64 = 5.0;
 const REACTOR_POWER_PRICE: f64 = 300.0;
 
@@ -78,7 +78,7 @@ impl Ship {
 
     pub fn random(position: SpaceCoord) -> Ship {
         let mut rng = rand::rng();
-        let cargo_cap = rng.random_range(100.0..10000.0) as f64;
+        let cargo_cap = rng.random_range(10.0..1000.0) as f64;
         Ship {
             id: rng.random(),
             position,
@@ -96,7 +96,7 @@ impl Ship {
             position,
             reactor_power: 1,
             fuel_tank_capacity: 1000.0,
-            cargo: ShipCargo::with_capacity(500.0),
+            cargo: ShipCargo::with_capacity(100.0),
             hull_decay_capacity: 3000.0,
             ..Default::default()
         }
@@ -108,7 +108,7 @@ impl Ship {
             position,
             reactor_power: 3,
             fuel_tank_capacity: 2000.0,
-            cargo: ShipCargo::with_capacity(1000.0),
+            cargo: ShipCargo::with_capacity(200.0),
             hull_decay_capacity: 6000.0,
             ..Default::default()
         }
@@ -120,7 +120,7 @@ impl Ship {
             position,
             reactor_power: 10,
             fuel_tank_capacity: 4000.0,
-            cargo: ShipCargo::with_capacity(3000.0),
+            cargo: ShipCargo::with_capacity(600.0),
             hull_decay_capacity: 20000.0,
             ..Default::default()
         }

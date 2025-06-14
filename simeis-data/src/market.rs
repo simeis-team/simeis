@@ -68,6 +68,7 @@ impl Market {
         }
     }
 
+    // TODO IMPORTANT Take the fee on the money, not the amount bought
     pub fn buy(&mut self, trader: &CrewMember, r: &Resource, amnt: f64) -> MarketTx {
         assert!(amnt > 0.0);
         let fee_rate = fee_rate(trader.rank);

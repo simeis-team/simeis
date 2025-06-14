@@ -119,17 +119,21 @@ impl Galaxy {
     // TODO (#11) Generate based on the galaxy
     pub fn init_new_station(&self) -> (StationId, SpaceCoord) {
         let mut rng = rand::rng();
+
+        // TODO Generate coords that are exactly at X distance from a planet
+        //     For fair play when multiplayers
         let coord = (rng.random(), rng.random(), rng.random());
+
+        let mut galaxy = self.0.write().unwrap();
+        if !galaxy.is_discovered(&coord) {
+            galaxy.generate_sector(&coord);
+        }
         let id = rng.random();
         let station = Arc::new(RwLock::new(station::Station::init(id, coord)));
 
-        let mut galaxy = self.0.write().unwrap();
         let res = galaxy.insert(&coord, SpaceObject::BaseStation(station));
         if res.is_err() {
             return self.init_new_station();
-        }
-        if !galaxy.is_discovered(&coord) {
-            galaxy.generate_sector(&coord);
         }
 
         (id, coord)

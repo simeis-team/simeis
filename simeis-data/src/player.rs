@@ -2,6 +2,7 @@ use rand::RngCore;
 use std::hash::Hasher;
 use std::collections::BTreeMap;
 use std::collections::hash_map::DefaultHasher;
+use std::time::Instant;
 
 use crate::crew::CrewId;
 use crate::errors::Errcode;
@@ -12,7 +13,7 @@ use crate::ship::upgrade::ShipUpgrade;
 use crate::ship::{Ship, ShipId};
 use crate::syslog::{SyslogEvent, SyslogRecv};
 
-const INIT_MONEY: f64 = 30000.0;
+const INIT_MONEY: f64 = 23000.0;
 
 pub type PlayerId = u16;
 pub type PlayerKey = [u8; 128];
@@ -20,8 +21,10 @@ pub type PlayerKey = [u8; 128];
 // Game state for a single player
 #[allow(dead_code)] // DEV
 pub struct Player {
+    pub created: Instant,
     pub id: PlayerId,
     pub key: PlayerKey,
+    pub total_earned: f64,
     pub lost: bool,
 
     pub name: String,
@@ -50,11 +53,13 @@ impl Player {
         let mut stations = BTreeMap::new();
         stations.insert(station.0, station.1);
         Player {
+            created: Instant::now(),
             key: randbytes,
             id: (hasher.finish() % (PlayerId::MAX as u64)) as PlayerId,
             lost: false,
 
             money,
+            total_earned: 0.0,
             costs: 0.0,
 
             name,

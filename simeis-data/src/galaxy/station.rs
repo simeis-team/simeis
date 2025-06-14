@@ -177,12 +177,13 @@ impl Station {
             return Err(Errcode::SellNothing);
         };
         let amnt = amnt.min(*can_cargo);
-        if amnt == 0.0 {
+        if amnt <= 0.0 {
             return Err(Errcode::SellNothing);
         }
 
         let tx = market.sell(cm, resource, amnt);
         player.money += tx.added_money.unwrap();
+        player.total_earned += tx.added_money.unwrap();
         let (r, a) = tx.removed_cargo.unwrap();
         let unloaded = self.cargo.unload(&r, a);
         debug_assert_eq!(unloaded, a);

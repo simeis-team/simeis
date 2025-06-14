@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
+use std::time::Instant;
 
 use base64::{prelude::BASE64_STANDARD, Engine};
 use ntex::web::types::Path;
@@ -800,25 +801,47 @@ async fn tick_server(
 async fn resources_info() -> impl web::Responder {
     let mut data = BTreeMap::new();
     for res in Resource::iter() {
-        data.insert(format!("{res:?}"), json!({
-            "base-price": res.base_price(),
-            "volume": res.volume(),
-            "difficulty": res.extraction_difficulty(),
-            "min-rank": res.min_rank(),
-        }));
+        if res.mineable(u8::MAX) || res.suckable(u8::MAX) {
+            data.insert(format!("{res:?}"), json!({
+                "base-price": res.base_price(),
+                "volume": res.volume(),
+                "difficulty": res.extraction_difficulty(),
+                "min-rank": res.min_rank(),
+            }));
+        } else {
+            data.insert(format!("{res:?}"), json!({
+                "base-price": res.base_price(),
+                "volume": res.volume(),
+            }));
+        }
     }
     build_response(Ok(to_value(data).unwrap()))
 }
 
-// TODO IMPORTANT    Stats of all the players in the game
-//     Total money earned
-//     Age of the player
+#[web::get("/gamestats")]
+async fn gamestats(srv: GameState) -> impl web::Responder {
+    let mut data = BTreeMap::new();
+    let players = srv.players.read().unwrap();
+    for (id, player) in players.iter() {
+        let p = player.read().unwrap();
+        data.insert(id, json!({
+            "name": p.name,
+            "score": p.total_earned,
+            "age": (Instant::now() - p.created).as_secs(),
+            "lost": p.lost,
+            "money": p.money,
+            "stations": p.stations,
+        }));
+    }
+    build_response(Ok(to_value(data).unwrap()))
+}
 
 pub fn configure(srv: &mut ServiceConfig) {
     #[cfg(feature = "testing")]
     srv.service(tick_server);
 
     srv.service(ping)
+        .service(gamestats)
         .service(resources_info)
         .service(get_syslogs)
         .service(hire_crew)
