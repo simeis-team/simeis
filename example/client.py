@@ -148,6 +148,9 @@ class Game:
             return
 
         # In case we don't have enough hull plates in stock
+        station = self.get(f"/station/{self.sta}")["cargo"]
+        if "HullPlate" not in station["resources"]:
+            station["resources"]["HullPlate"] = 0
         if station["resources"]["HullPlate"] < req:
             need = req - station["resources"]["HullPlate"]
             bought = self.get(f"/market/{self.sta}/buy/hullplate/{need}")
@@ -167,6 +170,9 @@ class Game:
             return
 
         # In case we don't have enough fuel in stock
+        station = self.get(f"/station/{self.sta}")["cargo"]
+        if "Fuel" not in station["resources"]:
+            station["resources"]["Fuel"] = 0
         if station["resources"]["Fuel"] < req:
             need = req - station["resources"]["Fuel"]
             bought = self.get(f"/market/{self.sta}/buy/Fuel/{need}")
@@ -280,7 +286,8 @@ class Game:
         self.ship_refuel(self.sid)
 
 if __name__ == "__main__":
-    game = Game("kevin50")
+    name = sys.argv[1]
+    game = Game(name)
     game.init_game()
 
     while True:

@@ -37,6 +37,7 @@ impl StationInfo {
     }
 }
 
+#[derive(Debug)]
 pub struct Station {
     pub id: StationId,
     pub position: SpaceCoord,

@@ -655,8 +655,7 @@ async fn start_extraction(
         return build_response(Err(Errcode::ShipNotFound(*id)));
     };
     build_response(
-        ship.start_extraction(&srv.galaxy)
-            .map(|v| to_value(v).unwrap()),
+        ship.start_extraction(&srv.galaxy).map(|v| to_value(v).unwrap())
     )
 }
 

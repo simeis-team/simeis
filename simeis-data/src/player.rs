@@ -13,7 +13,7 @@ use crate::ship::upgrade::ShipUpgrade;
 use crate::ship::{Ship, ShipId};
 use crate::syslog::{SyslogEvent, SyslogRecv};
 
-const INIT_MONEY: f64 = 23000.0;
+const INIT_MONEY: f64 = 25000.0;
 
 pub type PlayerId = u16;
 pub type PlayerKey = [u8; 128];

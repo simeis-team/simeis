@@ -24,7 +24,7 @@ const PILOT_FUEL_SHARE: u8 = 5; // Rank 10 = 4/5 fuel consumption
 const HULL_USAGE_BASE: f64 = 5.0 / 100.0;
 
 const FUEL_TANK_CAP_PRICE: f64 = 3.0;
-const CARGO_CAP_PRICE: f64 = 2.35;
+const CARGO_CAP_PRICE: f64 = 1.8;
 const HULL_DECAY_CAP_PRICE: f64 = 5.0;
 const REACTOR_POWER_PRICE: f64 = 300.0;
 
@@ -96,7 +96,7 @@ impl Ship {
             position,
             reactor_power: 1,
             fuel_tank_capacity: 1000.0,
-            cargo: ShipCargo::with_capacity(100.0),
+            cargo: ShipCargo::with_capacity(200.0),
             hull_decay_capacity: 3000.0,
             ..Default::default()
         }
@@ -108,7 +108,7 @@ impl Ship {
             position,
             reactor_power: 3,
             fuel_tank_capacity: 2000.0,
-            cargo: ShipCargo::with_capacity(200.0),
+            cargo: ShipCargo::with_capacity(400.0),
             hull_decay_capacity: 6000.0,
             ..Default::default()
         }
@@ -120,7 +120,7 @@ impl Ship {
             position,
             reactor_power: 10,
             fuel_tank_capacity: 4000.0,
-            cargo: ShipCargo::with_capacity(600.0),
+            cargo: ShipCargo::with_capacity(1200.0),
             hull_decay_capacity: 20000.0,
             ..Default::default()
         }
@@ -254,7 +254,9 @@ impl Ship {
         );
 
         let extraction = ExtractionInfo::create(self, &planet);
-        self.state = ShipState::Extracting(extraction.clone());
+        if !extraction.0.is_empty() {
+            self.state = ShipState::Extracting(extraction.clone());
+        }
         log::debug!("Extraction of resources: {extraction:?}");
         Ok(extraction)
     }

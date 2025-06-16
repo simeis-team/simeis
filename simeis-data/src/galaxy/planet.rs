@@ -22,6 +22,7 @@ impl PlanetInfo {
     }
 }
 
+#[derive(Debug)]
 pub struct Planet {
     pub position: SpaceCoord,
     temperature: u16,

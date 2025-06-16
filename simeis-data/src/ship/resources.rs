@@ -41,10 +41,10 @@ impl Resource {
     #[inline]
     pub const fn base_price(&self) -> f64 {
         match self {
-            Resource::Stone | Resource::Helium => 1.75,
-            Resource::Iron | Resource::Ozone => 7.0,
-            Resource::Fuel => 3.2,
-            Resource::HullPlate => 1.8,
+            Resource::Stone | Resource::Helium => 3.75,
+            Resource::Iron | Resource::Ozone => 9.5,
+            Resource::Fuel => 1.9,
+            Resource::HullPlate => 0.75,
         }
     }
 
@@ -60,10 +60,10 @@ impl Resource {
 
     pub fn min_rank(&self) -> u8 {
         match self {
-            Resource::Stone => 0,
-            Resource::Iron => 3,
-            Resource::Helium => 0,
-            Resource::Ozone => 3,
+            Resource::Stone
+            | Resource::Helium => 0,
+            Resource::Iron
+            | Resource::Ozone => 3,
             Resource::Fuel
             | Resource::HullPlate => 0,
         }
@@ -79,16 +79,16 @@ impl Resource {
 
     pub fn suckable(&self, rank: u8) -> bool {
         match self {
-            Resource::Helium => true,
-            Resource::Ozone => rank > 3,
+            Resource::Helium
+            | Resource::Ozone => rank > self.min_rank(),
             _ => false,
         }
     }
 
     pub fn extraction_difficulty(&self) -> f64 {
         match self {
-            Resource::Stone | Resource::Helium => 0.5,
-            Resource::Iron | Resource::Ozone => 1.0,
+            Resource::Stone | Resource::Helium => 0.35,
+            Resource::Iron | Resource::Ozone => 0.85,
 
             // All the things that are only crafted
             _ => unreachable!("Extraction difficulty on crafted resources"),
