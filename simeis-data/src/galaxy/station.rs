@@ -158,6 +158,7 @@ impl Station {
 
         let tx = market.buy(cm, resource, amnt);
         player.money -= tx.removed_money.unwrap();
+        player.score -= tx.removed_money.unwrap();
         let (r, a) = tx.added_cargo.unwrap();
         self.cargo.add_resource(&r, a);
         Ok(tx)
@@ -184,7 +185,7 @@ impl Station {
 
         let tx = market.sell(cm, resource, amnt);
         player.money += tx.added_money.unwrap();
-        player.total_earned += tx.added_money.unwrap();
+        player.score += tx.added_money.unwrap();
         let (r, a) = tx.removed_cargo.unwrap();
         let unloaded = self.cargo.unload(&r, a);
         debug_assert_eq!(unloaded, a);

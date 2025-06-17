@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use strum::{EnumString, IntoStaticStr};
 
-const WAGE_INC_RANK_POWF: f64 = 2.2;
-const RANK_PRICE_WAGE_MULT: f64 = 1500.0;
+const WAGE_INC_RANK_POWF: f64 = 0.85;
+const RANK_PRICE_WAGE_MULT: f64 = 1900.0;
 
 pub type CrewId = u32;
 
@@ -33,9 +33,9 @@ impl From<CrewMemberType> for CrewMember {
 impl CrewMember {
     pub fn wage(&self) -> f64 {
         let base = match self.member_type {
-            CrewMemberType::Pilot => 5.0,
-            CrewMemberType::Operator => 0.5,
-            CrewMemberType::Trader => 2.5,
+            CrewMemberType::Pilot => 5.5,
+            CrewMemberType::Operator => 0.9,
+            CrewMemberType::Trader => 2.6,
             CrewMemberType::Soldier => 1.5,
         };
         base * (self.rank as f64).powf(WAGE_INC_RANK_POWF)

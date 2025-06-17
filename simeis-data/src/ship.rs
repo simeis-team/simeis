@@ -23,10 +23,10 @@ pub mod upgrade;
 const PILOT_FUEL_SHARE: u8 = 5; // Rank 10 = 4/5 fuel consumption
 const HULL_USAGE_BASE: f64 = 5.0 / 100.0;
 
-const FUEL_TANK_CAP_PRICE: f64 = 3.0;
-const CARGO_CAP_PRICE: f64 = 1.8;
-const HULL_DECAY_CAP_PRICE: f64 = 5.0;
-const REACTOR_POWER_PRICE: f64 = 300.0;
+const FUEL_TANK_CAP_PRICE: f64 = 30.0;
+const CARGO_CAP_PRICE: f64 = 20.0;
+const HULL_DECAY_CAP_PRICE: f64 = 9.0;
+const REACTOR_POWER_PRICE: f64 = 4000.0;
 
 const REACTOR_SPEED_PER_POWER: f64 = 50.0;
 
@@ -161,6 +161,7 @@ impl Ship {
         if let Some(ref pilot) = self.pilot {
             let pilot = self.crew.0.get(pilot).unwrap();
             debug_assert!(matches!(pilot.member_type, CrewMemberType::Pilot));
+            // TODO Handle case where pilot rank > PILOT_FUEL_SHARE * 10
             let totshare = (PILOT_FUEL_SHARE * 10) as f64;
             self.stats.fuel_consumption *= (totshare - (pilot.rank as f64)) / totshare;
             self.stats.speed =

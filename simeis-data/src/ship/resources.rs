@@ -26,10 +26,14 @@ pub enum Resource {
     // Solid or liquid
     Stone,
     Iron,
+    Copper,
+    Gold,
 
     // Gaseous
     Helium,
     Ozone,
+    Freon,
+    Oxygen,
 
     // Crafted
     Fuel,
@@ -37,12 +41,22 @@ pub enum Resource {
 }
 
 impl Resource {
+    pub fn scored(&self) -> bool {
+        match self {
+            Resource::Fuel
+            | Resource::HullPlate => false,
+            _ => true,
+        }
+    }
+
     // TODO (#24) Get from configuration
     #[inline]
     pub const fn base_price(&self) -> f64 {
         match self {
-            Resource::Stone | Resource::Helium => 3.75,
-            Resource::Iron | Resource::Ozone => 9.5,
+            Resource::Stone | Resource::Helium => 4.0,
+            Resource::Iron | Resource::Ozone => 16.0,
+            Resource::Copper | Resource::Freon => 46.0,
+            Resource::Gold | Resource::Oxygen => 80.0,
             Resource::Fuel => 1.9,
             Resource::HullPlate => 0.75,
         }
@@ -51,28 +65,42 @@ impl Resource {
     pub fn volume(&self) -> f64 {
         match self {
             Resource::Stone | Resource::Helium => 0.75,
-            Resource::Iron | Resource::Ozone => 0.3,
-
+            Resource::Iron | Resource::Ozone => 2.5,
+            Resource::Copper | Resource::Freon => 3.0,
+            Resource::Gold | Resource::Oxygen => 0.25,
             Resource::Fuel => 2.0,
             Resource::HullPlate => 0.05,
         }
     }
 
+    pub fn extraction_difficulty(&self) -> f64 {
+        match self {
+            Resource::Stone | Resource::Helium => 0.25,
+            Resource::Iron | Resource::Ozone => 0.7,
+            Resource::Copper | Resource::Freon => 1.9,
+            Resource::Gold | Resource::Oxygen => 2.95,
+
+            // All the things that are only crafted
+            _ => unreachable!("Extraction difficulty on crafted resources"),
+        }
+    }
+
     pub fn min_rank(&self) -> u8 {
         match self {
-            Resource::Stone
-            | Resource::Helium => 0,
-            Resource::Iron
-            | Resource::Ozone => 3,
-            Resource::Fuel
-            | Resource::HullPlate => 0,
+            Resource::Stone | Resource::Helium => 0,
+            Resource::Iron | Resource::Ozone => 3,
+            Resource::Copper | Resource::Freon => 6,
+            Resource::Gold | Resource::Oxygen => 10,
+            Resource::Fuel | Resource::HullPlate => 0,
         }
     }
 
     pub fn mineable(&self, rank: u8) -> bool {
         match self {
             Resource::Stone
-            | Resource::Iron => rank > self.min_rank(),
+            | Resource::Iron
+            | Resource::Copper
+            | Resource::Gold => rank > self.min_rank(),
             _ => false,
         }
     }
@@ -80,18 +108,10 @@ impl Resource {
     pub fn suckable(&self, rank: u8) -> bool {
         match self {
             Resource::Helium
-            | Resource::Ozone => rank > self.min_rank(),
+            | Resource::Ozone
+            | Resource::Freon
+            | Resource::Oxygen => rank > self.min_rank(),
             _ => false,
-        }
-    }
-
-    pub fn extraction_difficulty(&self) -> f64 {
-        match self {
-            Resource::Stone | Resource::Helium => 0.35,
-            Resource::Iron | Resource::Ozone => 0.85,
-
-            // All the things that are only crafted
-            _ => unreachable!("Extraction difficulty on crafted resources"),
         }
     }
 }

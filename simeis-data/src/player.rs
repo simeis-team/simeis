@@ -13,7 +13,7 @@ use crate::ship::upgrade::ShipUpgrade;
 use crate::ship::{Ship, ShipId};
 use crate::syslog::{SyslogEvent, SyslogRecv};
 
-const INIT_MONEY: f64 = 25000.0;
+const INIT_MONEY: f64 = 72000.0;
 
 pub type PlayerId = u16;
 pub type PlayerKey = [u8; 128];
@@ -24,7 +24,7 @@ pub struct Player {
     pub created: Instant,
     pub id: PlayerId,
     pub key: PlayerKey,
-    pub total_earned: f64,
+    pub score: f64,
     pub lost: bool,
 
     pub name: String,
@@ -59,7 +59,7 @@ impl Player {
             lost: false,
 
             money,
-            total_earned: 0.0,
+            score: 0.0,
             costs: 0.0,
 
             name,
@@ -155,7 +155,6 @@ impl Player {
         }
         self.money -= price;
         let id = (ship.modules.len() + 1) as ShipModuleId;
-        log::warn!("id: {id:?}");
         ship.modules.insert(id, modtype.new_module());
         Ok(id)
     }

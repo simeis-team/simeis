@@ -6,15 +6,15 @@ use strum::IntoEnumIterator;
 
 use crate::{crew::CrewMember, ship::resources::Resource};
 
-const MAX_AVG_AMPL: f64 = 2.0 / 100.0;
-pub const MARKET_CHANGE_SEC: f64 = 20.0;
-const BASE_FEE_RATE: f64 = 20.0 / 100.0;
-const FEE_RATE_DEC_POWF: f64 = 1.3;
-const UPD_PRICE_PROBA: f64 = 0.65;
+const MAX_AVG_AMPL: f64 = 1.5 / 100.0;
+pub const MARKET_CHANGE_SEC: f64 = 10.0;
+const BASE_FEE_RATE: f64 = 25.0 / 100.0;
+const FEE_RATE_DEC_POWF: f64 = 1.15;
+const UPD_PRICE_PROBA: f64 = 0.80;
 
-// Buying 10000 worth of a resource can increase the price between 15% and 20%
-const PRICE_INC_DIV: f64 = 10000.0;
-const PRICE_INC_RANGE_MAX: f64 = 20.0 / 100.0;
+// Buying 8000 worth of a resource will increase the price between 15% and 20%
+const PRICE_INC_DIV: f64 = 8000.0;
+const PRICE_INC_RANGE_MAX: f64 = 10.0 / 100.0;
 const PRICE_INC_MIN_RATIO: f64 = 75.0 / 100.0;
 
 #[inline]

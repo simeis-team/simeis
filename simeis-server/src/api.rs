@@ -207,6 +207,7 @@ async fn shipyard_buy_ship(
     )
 }
 
+// TODO IMPORTANT    Get ship ID here, and adapt prices based on the ranks of the modules
 #[web::get("/station/{station_id}/shipyard/upgrade")]
 async fn shipyard_list_upgrades(
     srv: GameState,
@@ -825,7 +826,17 @@ async fn gamestats(srv: GameState) -> impl web::Responder {
         let p = player.read().unwrap();
         data.insert(id, json!({
             "name": p.name,
-            "score": p.total_earned,
+            "score": p.score,
+            "potential": p.stations.iter()
+                .map(|(_, coord)| {
+                    let sta = srv.galaxy.get_station(coord).unwrap();
+                    let station = sta.read().unwrap();
+                    station.cargo.resources
+                        .iter()
+                        .map(|(r, amnt)| r.base_price() * amnt)
+                        .sum::<f64>()
+                })
+                .sum::<f64>(),
             "age": (Instant::now() - p.created).as_secs(),
             "lost": p.lost,
             "money": p.money,

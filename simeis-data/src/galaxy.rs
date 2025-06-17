@@ -167,18 +167,25 @@ impl Galaxy {
             }
 
             let mindist = mindist.unwrap();
-            if (mindist - STATION_FPLANET_DIST).abs() < 0.3 {
+            if (mindist - STATION_FPLANET_DIST).abs() < 1.0 {
                 break;
             }
-            log::warn!("Min distance with coord {coord:?} relative to {:?}: {mindist}, looping to find a better angle", pla.position);
             retry_n += 1;
-            if retry_n > 100 {
+            if retry_n > 1000 {
                 panic!("Too many retries");
             }
         }
         log::debug!("Station {coord:?} with distance {} to planet {:?}", get_distance(&coord, &pla.position), pla.position);
         let station = Arc::new(RwLock::new(station::Station::init(id, coord)));
         galaxy.insert(&coord, SpaceObject::BaseStation(station)).unwrap();
+        drop(galaxy);
+        let scanned = self.scan_sector(1, &coord);
+        assert_ne!(scanned.planets.len(), 0);
+        if scanned.planets.is_empty() {
+            log::error!("NO PLANETS AROUND STATION");
+        } else {
+            log::info!("{} planets around", scanned.planets.len());
+        }
         return (id, coord);
     }
 
@@ -209,8 +216,15 @@ impl Galaxy {
                 results.add(rank, obj);
             }
         }
+
+        // TODO FIXME
+        log::debug!("Scan strenght: {strengh:?}");
         if results.planets.len() == 0 {
-            log::debug!("{:?}", self.0.read().unwrap().objects);
+            for sector in sectors_around(center, strengh) {
+                log::debug!("Sector {sector:?}");
+                log::debug!("{:?}", self.0.read().unwrap().list_objects_in_sector(&sector));
+            }
+            panic!("NO PLANETS");
         }
         debug_assert!(results.planets.len() > 0);    // We should always have some planets
         results
