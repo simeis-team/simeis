@@ -51,12 +51,29 @@ macro_rules! get_player {
 macro_rules! get_station {
     ($srv:ident, $player:ident, $id:expr) => {{
         let player = $player.read().await;
-        let Some(station_coord) = player.stations.get($id) else {
+        let Some(station_coord) = player.stations.get($id).cloned() else {
             return build_response(Err(Errcode::NoSuchStation(*$id)));
         };
-        $srv.galaxy.get_station(station_coord).await.unwrap()
+        drop(player);
+        $srv.galaxy.get_station(&station_coord).await.unwrap()
     }};
 }
+
+// TODO    Ensure that multiple players cannot lock themselves:
+//     Ask for write on X, wait for read on Y
+//     Ask for write on Y, wait for read on X
+
+// TODO    Centralise every read / write in the API
+//     and give them a specific order:
+//         player first, station after, galaxy then, etc...
+// - Player index
+// - Player list
+// - Player
+// - Galaxy
+// - Station
+// - Market
+// - SyslogFifo
+// - PlayerFifo
 
 fn get_player_key(req: &HttpRequest) -> Option<PlayerKey> {
     for q in req.query_string().split("&") {
@@ -108,12 +125,14 @@ async fn ping() -> impl web::Responder {
 #[web::get("/syslogs")]
 async fn get_syslogs(srv: GameState, req: HttpRequest) -> impl web::Responder {
     let player = get_player!(srv, req);
-    let player = player.read().await;
-    let allfifo = srv.fifo_events.read().await;
-    let Some(fifo) = allfifo.get(&player.id) else {
+    let pid = player.read().await.id;    // OK
+    let allfifo = srv.fifo_events.read().await;    // OK
+    let Some(fifo) = allfifo.get(&pid) else {
         return build_response(Ok(json!({"nb": 0, "events": []})));
     };
-    let mut fifo = fifo.write().await;
+    let fifo = fifo.clone();
+    drop(allfifo);
+    let mut fifo = fifo.write().await;    // OK
     let all_ev = fifo.remove_all();
     let res = all_ev
         .into_iter()
@@ -131,7 +150,17 @@ async fn get_syslogs(srv: GameState, req: HttpRequest) -> impl web::Responder {
 
 #[web::get("/player/new/{name}")]
 async fn new_player(srv: GameState, name: Path<String>) -> impl web::Responder {
-    build_response(srv.new_player(&name).await.map(|(id, key)| {
+    let name = name.to_string();
+    let players = srv.players.read().await;    // OK
+    for (pid, player) in players.iter() {
+        if name == player.read().await.name {
+            return build_response(Err(Errcode::PlayerAlreadyExists(*pid, name)));
+        }
+    }
+    drop(players);
+
+    let res = srv.new_player(name).await;
+    build_response(res.map(|(id, key)| {
         json!({
             "playerId": id,
             "key": key,
@@ -145,11 +174,11 @@ async fn get_player(srv: GameState, id: Path<PlayerId>, req: HttpRequest) -> imp
         return build_response(Err(Errcode::NoPlayerKey));
     };
     let id = id.as_ref();
-    let players = srv.players.read().await;
+    let players = srv.players.read().await;    // OK
     let Some(player) = players.get(id) else {
         return build_response(Err(Errcode::PlayerNotFound(*id)));
     };
-    let player = player.read().await;
+    let player = player.read().await;   // OK
     let res = if player.key == key {
         Ok(json!({
             "id": id,
@@ -180,7 +209,7 @@ async fn get_station_status(
 ) -> impl web::Responder {
     let player = get_player!(srv, req);
     let station = get_station!(srv, player, id.as_ref());
-    let station = station.read().await;
+    let station = station.read().await;    // OK
     build_response(Ok(json!({
         "id": station.id,
         "position": station.position,
@@ -199,7 +228,7 @@ async fn list_shipyard_ships(
 ) -> impl web::Responder {
     let player = get_player!(srv, req);
     let station = get_station!(srv, player, id.as_ref());
-    let station = station.read().await;
+    let station = station.read().await;    // OK
     let mut ships = vec![];
     for ship in station.shipyard.iter() {
         ships.push(json!({
@@ -293,8 +322,8 @@ async fn hire_crew(
     let mut rng = rand::rng();
     let id = rng.random();
     let member = CrewMember::from(crewtype);
-    station.write().await.idle_crew.0.insert(id, member);
     player.write().await.update_wages(&srv.galaxy).await;
+    station.write().await.idle_crew.0.insert(id, member);
     build_response(Ok(serde_json::json!({ "id": id })))
 }
 
@@ -357,7 +386,8 @@ async fn upgrade_station_trader(
     let player = get_player!(srv, req);
     let station = get_station!(srv, player, station_id.as_ref());
     let mut player = player.write().await;
-    let res = player.upgrade_station_trader(station.write().await.deref_mut());
+    let mut station = station.write().await;
+    let res = player.upgrade_station_trader(station.deref_mut());
     if res.is_ok() {
         player.update_wages(&srv.galaxy).await;
     }
@@ -455,11 +485,11 @@ async fn buy_ship_module(
     req: HttpRequest,
 ) -> impl web::Responder {
     let (station_id, ship_id, modtype) = args.as_ref();
-    let player = get_player!(srv, req);
-
     let Ok(modtype) = ShipModuleType::from_str(modtype.as_str()) else {
         return build_response(Err(Errcode::InvalidArgument("modtype")));
     };
+
+    let player = get_player!(srv, req);
     let mut player = player.write().await;
     build_response(
         player
@@ -570,7 +600,6 @@ async fn refuel_ship(
     args: Path<(StationId, ShipId)>,
     req: HttpRequest,
 ) -> impl web::Responder {
-    log::warn!("Refuel started");
     let (station_id, ship_id) = args.as_ref();
     let player = get_player!(srv, req);
     let station = get_station!(srv, player, station_id);
@@ -581,7 +610,6 @@ async fn refuel_ship(
     };
 
     let res = station.refuel_ship(ship).map(|v| json!({"added-fuel": v}));
-    log::warn!("Refuel finished");
     build_response(res)
 }
 
@@ -591,7 +619,6 @@ async fn repair_ship(
     args: Path<(StationId, ShipId)>,
     req: HttpRequest,
 ) -> impl web::Responder {
-    log::warn!("Repair started");
     let (station_id, ship_id) = args.as_ref();
     let player = get_player!(srv, req);
     let station = get_station!(srv, player, station_id);
@@ -604,7 +631,6 @@ async fn repair_ship(
     let res = station
             .repair_ship(ship)
             .map(|v| json!({"added-hull": v}));
-    log::warn!("Repair finished");
     build_response(res)
 }
 
@@ -779,7 +805,6 @@ async fn sell_resource(
     args: Path<(StationId, String, f64)>,
     req: HttpRequest,
 ) -> impl web::Responder {
-    log::warn!("New sell operation");
     let (station_id, resource, amnt) = args.as_ref();
     let Ok(resource) = Resource::from_str(resource) else {
         return build_response(Err(Errcode::InvalidArgument("resource")));
@@ -792,7 +817,6 @@ async fn sell_resource(
     let res = station
             .sell_resource(&resource, *amnt, player.deref_mut(), market.deref_mut())
             .map(|tx| to_value(tx).unwrap());
-    log::warn!("Sell operation OK");
     build_response(res)
 }
 
@@ -878,6 +902,7 @@ async fn gamestats(srv: GameState) -> impl web::Responder {
     build_response(Ok(to_value(data).unwrap()))
 }
 
+// TODO IMPORTANT   FIXME    After a while, hangs without response
 pub fn configure(srv: &mut ServiceConfig) {
     #[cfg(feature = "testing")]
     srv.service(tick_server);

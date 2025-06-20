@@ -19,6 +19,10 @@ WIDTH=100
 SCORE="█"
 POTENTIAL="▒"
 VOID=" "
+
+MIN = {}
+MAX = {}
+
 def mkbar(score, pot, maxs):
     if maxs == 0.0:
         ps = 0
@@ -41,8 +45,9 @@ def get(path):
             os.system("clear")
             HIST = {}
             INIT=False
-            print("DEAD SERVER")
-            time.sleep(1)
+            breakpoint()
+            # print("DEAD SERVER")
+            # time.sleep(1)
             continue
 
     data = json.loads(reply.read().decode())
@@ -61,17 +66,46 @@ def get_resources():
 def get_market():
     return get("market/prices")["prices"]
 
-resources = get_resources()
-while True:
-    time.sleep(2)
-    os.system("clear")
+def disp_market(resources):
     market = get_market()
     max_res_len = max([len(k) for k in market.keys()])
+    disp = {}
     for (res, price) in market.items():
+        MIN[res] = round(min(MIN[res], price), 2)
+        MAX[res] = round(max(MAX[res], price), 2)
         relp = round((price / resources[res]["base-price"]) * 100, 2)
         price = round(price, 3)
         space = " "*(1 + max_res_len - len(res))
-        print(f"{res}{space}{price} ({relp} %)")
+
+        disp[res] = {
+            "head": f"{price}",
+            "mid": f"({relp} %)",
+            "tail": "({} < {} < {})".format(MIN[res], resources[res]["base-price"], MAX[res]),
+        }
+
+    max_res = max([len(r) for r in disp.keys()])
+    max_head = max([len(d["head"]) for _, d in disp.items()])
+    max_mid = max([len(d["mid"]) for _, d in disp.items()])
+    max_tail = max([len(d["tail"]) for _, d in disp.items()])
+
+    for res, d in disp.items():
+        print("{}{}{}{}{}{}{}".format(
+            res, " " * (max_res + 1 - len(res)),
+            d["head"], " " * (max_head + 1 - len(d["head"])),
+            d["mid"], " " * (max_mid + 1 - len(d["mid"])),
+            d["tail"], " " * (max_tail + 1 - len(d["tail"])),
+        ))
+
+resources = get_resources()
+for (res, data) in resources.items():
+    MIN[res] = data["base-price"]
+    MAX[res] = data["base-price"]
+
+while True:
+    time.sleep(2)
+    os.system("clear")
+    disp_market(resources)
+
     print("")
 
     info = get_info()

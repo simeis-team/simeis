@@ -53,7 +53,7 @@ impl Game {
             send_sig: send_stop,
             galaxy: Galaxy::init(),
             market: Arc::new(RwLock::new(Market::init())),
-            players: Arc::new(RwLock::new(BTreeMap::new())),
+            players: Arc::new(RwLock::new(BTreeMap::new())),    // FIXME Here Deadlock
             player_index: Arc::new(RwLock::new(HashMap::new())),
             syslog: syssend.clone(),
             fifo_events: sysrecv.fifo.clone(),
@@ -111,15 +111,9 @@ impl Game {
     async fn threadloop<R: Rng>(&self, rng: &mut R, mlt: &mut Instant, syslog: &SyslogRecv) {
         let market_change_proba = (mlt.elapsed().as_secs_f64() / MARKET_CHANGE_SEC).min(1.0);
 
-        if rng.random_bool(market_change_proba) {
-            #[cfg(not(feature = "testing"))]
-            self.market.write().await.update_prices(rng);
-            *mlt = Instant::now();
-        }
-
-        let all_players = self.players.read().await.clone();
+        let all_players = self.players.read().await.clone(); // OK
         for (player_id, player) in all_players {
-            let mut player = player.write().await;
+            let mut player = player.write().await;     // OK
             player.update_money(syslog, ITER_PERIOD.as_secs_f64()).await;
 
             let mut deadship = vec![];
@@ -153,6 +147,12 @@ impl Game {
             }
         }
 
+        if rng.random_bool(market_change_proba) {
+            #[cfg(not(feature = "testing"))]
+            self.market.write().await.update_prices(rng);    // OK
+            *mlt = Instant::now();
+        }
+
         syslog.update().await;
     }
 
@@ -163,26 +163,17 @@ impl Game {
         log::info!("Game stopped");
     }
 
-    pub async fn new_player<T: ToString>(&self, name: T) -> Result<(PlayerId, String), Errcode> {
-        let name = name.to_string();
-        for (pid, player) in self.players.read().await.iter() {
-            if name == player.read().await.name {
-                return Err(Errcode::PlayerAlreadyExists(*pid, name));
-            }
-        }
-
+    pub async fn new_player(&self, name: String) -> Result<(PlayerId, String), Errcode> {
+        let mut index = self.player_index.write().await;     // OK
+        let mut players = self.players.write().await;        // OK
         let station = self.galaxy.init_new_station().await;
+
         let player = Player::new(station, name);
         let pid = player.id;
         let key = BASE64_STANDARD.encode(player.key);
-        self.player_index
-            .write()
-            .await
-            .insert(player.key, player.id);
-        self.players
-            .write()
-            .await
-            .insert(player.id, Arc::new(RwLock::new(player)));
+
+        index.insert(player.key, player.id);
+        players.insert(player.id, Arc::new(RwLock::new(player)));    // FIXME Here
         self.syslog.event(&pid, SyslogEvent::GameStarted).await;
         Ok((pid, key))
     }

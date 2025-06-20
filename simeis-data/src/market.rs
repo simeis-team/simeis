@@ -6,9 +6,10 @@ use strum::IntoEnumIterator;
 
 use crate::{crew::CrewMember, ship::resources::Resource};
 
-const MAX_AVG_AMPL: f64 = 1.5 / 100.0;
+const MAX_AVG_AMPL: f64 = 5.0 / 100.0;
+const STD_DIV: f64 = 3.0;
 pub const MARKET_CHANGE_SEC: f64 = 10.0;
-const BASE_FEE_RATE: f64 = 25.0 / 100.0;
+const BASE_FEE_RATE: f64 = 26.0 / 100.0;
 const FEE_RATE_DEC_POWF: f64 = 1.15;
 const UPD_PRICE_PROBA: f64 = 0.80;
 
@@ -39,8 +40,10 @@ impl Market {
     fn rand_distrib(&self, r: &Resource, now_price: f64) -> Normal<f64> {
         let base_price = r.base_price();
         let pratio = now_price / base_price;
+        // 0.3    AVG = 1 - 0.3 = 0.7  * MAX AMPL = 3.5 * 0.7  =  2.45
+        // 1.3    AVG = 1 - 1.3 = -0.3 * MAX AMPL = 3.5 * -0.3 = -1.05
         let avg = (1.0 - pratio) * MAX_AVG_AMPL;
-        let std = avg.abs() + MAX_AVG_AMPL;
+        let std = avg.abs() + (MAX_AVG_AMPL / STD_DIV);
 
         rand_distr::Normal::new(avg, std).unwrap()
     }

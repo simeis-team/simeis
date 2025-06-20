@@ -45,7 +45,7 @@ class Game:
             ])
 
         qry = f"{URL}{path}{tail}"
-        reply = urllib.request.urlopen(qry, timeout=5)
+        reply = urllib.request.urlopen(qry, timeout=1)
 
         data = json.loads(reply.read().decode())
         err = data.pop("error")

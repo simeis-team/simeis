@@ -1,5 +1,5 @@
 use rand::rngs::ThreadRng;
-use rand::{Rng, SeedableRng};
+use rand::Rng;
 use scan::ScanResult;
 use station::StationId;
 use std::collections::BTreeMap;
@@ -14,9 +14,9 @@ type GalaxySector = (
     (SpaceUnit, SpaceUnit),
 );
 
-const SECTOR_SIZE: (SpaceUnit, SpaceUnit, SpaceUnit) = (2000, 2000, 2000);
-const PLANETS_PER_SECTOR: usize = 6;
-const STATION_FPLANET_DIST: f64 = 200.0;
+const SECTOR_SIZE: (SpaceUnit, SpaceUnit, SpaceUnit) = (5000, 5000, 5000);
+const PLANETS_PER_SECTOR: usize = 3;
+const STATION_FPLANET_DIST: f64 = 500.0;
 
 pub mod planet;
 pub mod scan;
@@ -121,14 +121,14 @@ pub struct Galaxy(Arc<RwLock<GalaxyMap>>);
 
 impl Galaxy {
     pub fn init() -> Galaxy {
-        Galaxy(Arc::new(RwLock::new(GalaxyMap::empty())))
+        Galaxy(Arc::new(RwLock::new(GalaxyMap::empty())))    // FIXME Here
     }
 
     // TODO (#11) Generate based on the galaxy
     pub async fn init_new_station(&self) -> (StationId, SpaceCoord) {
+        let mut galaxy = self.0.write().await;     // OK
         let mut rng = rand::rng();
 
-        let mut galaxy = self.0.write().await;
         let mut seccoord = (rng.random(), rng.random(), rng.random());
         while galaxy.is_discovered(&seccoord) {
             seccoord = (rng.random(), rng.random(), rng.random());
@@ -168,11 +168,12 @@ impl Galaxy {
             }
 
             let mindist = mindist.unwrap();
-            if (mindist < STATION_FPLANET_DIST) && (mindist - STATION_FPLANET_DIST).abs() < 1.0 {
+            if (mindist - STATION_FPLANET_DIST).abs() < 1.0 {
                 break;
             }
             retry_n += 1;
-            if retry_n > 1000 {
+            log::warn!("{retry_n} {mindist} {STATION_FPLANET_DIST}");
+            if retry_n > 10000 {
                 panic!("Too many retries");
             }
         }
@@ -183,7 +184,7 @@ impl Galaxy {
     }
 
     pub async fn get_station(&self, coord: &SpaceCoord) -> Option<Arc<RwLock<station::Station>>> {
-        let galaxy = self.0.read().await;
+        let galaxy = self.0.read().await;     // OK
         let obj = galaxy.get(coord)?;
         let SpaceObject::BaseStation(station) = obj else {
             return None;
@@ -192,7 +193,7 @@ impl Galaxy {
     }
 
     pub async fn get_planet(&self, coord: &SpaceCoord) -> Option<Arc<planet::Planet>> {
-        let galaxy = self.0.read().await;
+        let galaxy = self.0.read().await;     // OK
         let obj = galaxy.get(coord)?;
         let SpaceObject::Planet(planet) = obj else {
             return None;
@@ -201,11 +202,12 @@ impl Galaxy {
     }
 
     pub async fn scan_sector(&self, rank: u8, center: &SpaceCoord) -> ScanResult {
+        let galaxy = self.0.read().await;     // OK 
         let strengh = (rank - 1) as f64;
         let mut results = ScanResult::empty();
         debug_assert!(strengh >= 0.0);
         for sector in sectors_around(center, strengh) {
-            for obj in self.0.read().await.list_objects_in_sector(&sector) {
+            for obj in galaxy.list_objects_in_sector(&sector) {
                 results.add(rank, obj).await;
             }
         }
@@ -306,16 +308,17 @@ fn sectors_around(center: &SpaceCoord, radius: f64) -> Vec<GalaxySector> {
 }
 
 fn get_rand_coord_near(obj: &SpaceCoord, dist: f64, rng: &mut ThreadRng) -> SpaceCoord {
-    let angle_xy = rng.random_range(0.0..2.0*std::f64::consts::PI);
-    let x = obj.0 + (angle_xy.cos() * dist) as u32;
-    let y = obj.1 + (angle_xy.sin() * dist) as u32;
-    let z = obj.2;
-    (x, y, z)
+    let theta = rng.random_range(0.0..2.0 * std::f64::consts::PI); // azimuthal angle
+    let phi = rng.random_range(0.0..std::f64::consts::PI);         // polar angle
+    let x = (obj.0 as f64) + (dist * phi.sin() * theta.cos());
+    let y = (obj.1 as f64) + (dist * phi.sin() * theta.sin());
+    let z = (obj.2 as f64) + (dist * phi.cos());
+    (x as u32, y as u32, z as u32)
 }
 
 #[test]
 fn test_compute_sector() {
-    let mut rng = rand::rngs::SmallRng::from_os_rng();
+    let mut rng = <rand::rngs::SmallRng as rand::SeedableRng>::from_os_rng();
     for _ in 0..10000000 {
         let x = rng.random();
         let y = rng.random();

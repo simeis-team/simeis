@@ -87,7 +87,7 @@ impl SyslogSend {
     }
 }
 
-pub type SyslogFifo = Arc<RwLock<BTreeMap<PlayerId, RwLock<Fifo<(f64, SyslogEvent)>>>>>;
+pub type SyslogFifo = Arc<RwLock<BTreeMap<PlayerId, Arc<RwLock<Fifo<(f64, SyslogEvent)>>>>>>;
 
 pub struct SyslogRecv {
     recv: Mutex<Receiver<SyslogData>>,
@@ -125,8 +125,10 @@ impl SyslogRecv {
     async fn add_to_fifo(&self, id: PlayerId, ns: f64, evt: SyslogEvent) {
         log::debug!("Player {id} got event {evt:?}");
         let ok = {
-            if let Some(fifo) = self.fifo.read().await.get(&id) {
-                fifo.write().await.push((ns, evt.clone()));
+            let sysfifo = self.fifo.read().await;     // OK
+            if let Some(fifo) = sysfifo.get(&id) {
+                let mut player_fifo = fifo.write().await;    // OK
+                player_fifo.push((ns, evt.clone()));
                 true
             } else {
                 false
@@ -136,7 +138,8 @@ impl SyslogRecv {
         if !ok {
             let mut fifo = Fifo::new();
             fifo.push((ns, evt));
-            self.fifo.write().await.insert(id, RwLock::new(fifo));
+            let mut sysfifo = self.fifo.write().await;     // OK
+            sysfifo.insert(id, Arc::new(RwLock::new(fifo)));
         }
     }
 }
