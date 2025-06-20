@@ -8,8 +8,6 @@ pub type GameState = ntex::web::types::State<Game>;
 
 #[ntex::main]
 async fn main() -> std::io::Result<()> {
-    console_subscriber::init();
-
     #[cfg(not(feature = "testing"))]
     let port = 8080;
 
