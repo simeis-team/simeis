@@ -119,6 +119,7 @@ while True:
         if p["lost"]:
             p["score"] = -1.0
 
+    buffer += "{} Players still in the game\n".format(len([True for p in info.values() if not p["lost"]]))
     players = sorted(info.items(), key=lambda p: p[1]["score"] + p[1]["potential"], reverse=True)[:NMAX]
     max_score = max([max(v["score"], 0) + v["potential"] for v in info.values()])
     maxn = max([len(data["name"]) for (_, data) in players])
