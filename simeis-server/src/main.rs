@@ -22,7 +22,7 @@ async fn main() -> std::io::Result<()> {
         // .filter_module("ntex::http::h1", log::LevelFilter::Warn)
         .init();
 
-    log::info!("Running on http://127.0.0.1:{port}");
+    log::info!("Running on http://0.0.0.0:{port}");
     let (gamethread, state) = Game::init();
     let game = state.clone();
 
@@ -33,7 +33,9 @@ async fn main() -> std::io::Result<()> {
             .configure(|srv| api::configure(srv))
     })
     .stop_runtime()
-    .bind(("127.0.0.1", port))?
+    .bind(("0.0.0.0", port))?
+    // TODO IMPORTANT    When multiple actions at the same time, action /gamestats never
+    //         ends, as well as other endpoints with high locks dependencies
     // With multiple workers but without the "watch_game" script, works OK
     // With 1 worker only, works like a charm
     // .workers(200)
