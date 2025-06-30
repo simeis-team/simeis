@@ -7,16 +7,16 @@ use strum::IntoEnumIterator;
 use crate::{crew::CrewMember, ship::resources::Resource};
 
 const MAX_AVG_AMPL: f64 = 5.0 / 100.0;
-const STD_DIV: f64 = 1.5;
-pub const MARKET_CHANGE_SEC: f64 = 3.0;
+const STD_DIV: f64 = 3.5;
+pub const MARKET_CHANGE_SEC: f64 = 8.0;
 const BASE_FEE_RATE: f64 = 26.0 / 100.0;
 const FEE_RATE_DEC_POWF: f64 = 1.15;
 const UPD_PRICE_PROBA: f64 = 0.80;
 
-// Buying 40000 worth of a resource will increase the price between 15% and 20%
-const PRICE_INC_DIV: f64 = 40000.0;
-const PRICE_INC_RANGE_MAX: f64 = 10.0 / 100.0;
-const PRICE_INC_MIN_RATIO: f64 = 75.0 / 100.0;
+// Buying 400000 worth of a resource will increase the price between 15% and 30%
+const PRICE_INC_DIV: f64 = 400_000.0;
+const PRICE_INC_RANGE_MAX: f64 = 30.0 / 100.0;
+const PRICE_INC_MIN_RATIO: f64 = 50.0 / 100.0;
 
 #[inline]
 pub fn fee_rate(rank: u8) -> f64 {
@@ -79,7 +79,6 @@ impl Market {
         assert!(price > 0.0);
         let cost = amnt * price;
         let fees = cost * fee_rate;
-        // TODO In case cargo is reaaaaaaaaaally big, it could make the price < 0 and trigger a bad assert
         let price_inc_max = (cost / PRICE_INC_DIV) * PRICE_INC_RANGE_MAX;
         let price_inc_min = price_inc_max * PRICE_INC_MIN_RATIO;
         let mut rng = rand::rng();
@@ -103,6 +102,7 @@ impl Market {
         let cost = amnt * price;
         let fees = cost * fee_rate;
 
+        // TODO In case cargo is reaaaaaaaaaally big, it could make the price < 0 and trigger a bad assert
         let price_dec_max = (cost / PRICE_INC_DIV) * PRICE_INC_RANGE_MAX;
         let price_dec_min = price_dec_max * PRICE_INC_MIN_RATIO;
         let mut rng = rand::rng();

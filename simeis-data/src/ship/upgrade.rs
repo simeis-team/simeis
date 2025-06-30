@@ -3,7 +3,7 @@ use strum::{EnumIter, EnumString, IntoStaticStr};
 
 use super::{Ship, CARGO_CAP_PRICE, HULL_DECAY_CAP_PRICE, REACTOR_POWER_PRICE, SHIELD_PRICE};
 
-const CARGO_EXP_ADD_CAP: f64 = 100.0;
+const CARGO_EXP_ADD_CAP: f64 = 500.0;
 const REACTOR_UPG_ADD: u16 = 1;
 const HULL_UPG_ADD: f64 = 100.0;
 const SHIELD_UPG_ADD: u16 = 1;
@@ -36,10 +36,10 @@ pub enum ShipUpgrade {
 impl ShipUpgrade {
     pub fn get_price(&self) -> f64 {
         match self {
-            ShipUpgrade::CargoExpansion => CARGO_EXP_ADD_CAP * CARGO_CAP_PRICE,
-            ShipUpgrade::ReactorUpgrade => (REACTOR_UPG_ADD as f64) * REACTOR_POWER_PRICE,
-            ShipUpgrade::HullUpgrade => HULL_UPG_ADD * HULL_DECAY_CAP_PRICE,
-            ShipUpgrade::Shield => (SHIELD_UPG_ADD as f64) * SHIELD_PRICE,
+            ShipUpgrade::CargoExpansion => CARGO_EXP_ADD_CAP * CARGO_CAP_PRICE * 1.5,
+            ShipUpgrade::ReactorUpgrade => (REACTOR_UPG_ADD as f64) * REACTOR_POWER_PRICE * 1.5,
+            ShipUpgrade::HullUpgrade => HULL_UPG_ADD * HULL_DECAY_CAP_PRICE * 1.5,
+            ShipUpgrade::Shield => (SHIELD_UPG_ADD as f64) * SHIELD_PRICE * 1.5,
         }
     }
 

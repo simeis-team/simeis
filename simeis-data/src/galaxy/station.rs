@@ -15,7 +15,7 @@ use super::{Galaxy, SpaceCoord};
 
 const CARGO_BASE_PRICE: f64 = 2.0;
 // For X units of cargo purshased, price goes from (base ^ n) to (base ^ (n+1))
-const CARGO_PRICE_INCDIV: f64 = 1000.0;
+const CARGO_PRICE_INCDIV: f64 = 100.0;
 const STATION_INIT_CARGO: f64 = 1000.0;
 
 pub type StationId = u16;
