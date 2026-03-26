@@ -899,7 +899,7 @@ async fn unload_ship_cargo(
 #[web::get("/market/prices")]
 async fn get_market_prices(srv: GameState) -> impl web::Responder {
     let market = srv.market.read().await;
-    let res = to_value(market.deref()).unwrap();
+    let res = to_value(&market.prices).unwrap();
     build_response(Ok(res))
 }
 
