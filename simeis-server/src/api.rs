@@ -307,7 +307,7 @@ async fn shipyard_list_upgrades(
 
     let mut res = BTreeMap::new();
     for upgr in ShipUpgrade::iter() {
-        let price = station.get_ship_upgrade_price(&ship, &upgr);
+        let price = station.get_ship_upgrade_price(ship, &upgr);
         res.insert(
             upgr,
             json!({

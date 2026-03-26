@@ -239,7 +239,11 @@ impl Player {
         Ok(res)
     }
 
-    pub fn upgrade_station_crew(&mut self, station: &mut Station, crew_id: &CrewId) -> Result<(f64, u8), Errcode> {
+    pub fn upgrade_station_crew(
+        &mut self,
+        station: &mut Station,
+        crew_id: &CrewId,
+    ) -> Result<(f64, u8), Errcode> {
         let Some(cm) = station.crew.0.get_mut(crew_id) else {
             return Err(Errcode::CrewMemberNotFound(*crew_id));
         };
