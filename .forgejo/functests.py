@@ -215,7 +215,7 @@ class Tester:
         pl2_key = self.assert_got(pl2, "key", None)
 
         pl1 = self.assert_ok(f"/player/{self.id}")
-        self.assert_got(pl1, "money", 30000)
+        self.assert_got(pl1, "money", 72000)
 
         got = self.assert_ok(f"/player/{self.id}", key=pl2["key"])
         self.assert_got(got, "money", None, negate=True)
@@ -262,7 +262,7 @@ class Tester:
 
         sid_cant = [id for id, ship in ships.items() if ship["price"] > beforemoney ][0]
         self.assert_error(f"/station/{self.station}/shipyard/buy/{sid_cant}",
-            errtype="NotEnoughMoney(30000.0, {})".format(ships[sid_cant]["price"])
+            errtype="NotEnoughMoney(72000.0, {})".format(ships[sid_cant]["price"])
         )
 
         sid_can = [id for id, ship in ships.items() if ship["price"] <= beforemoney ][0]
@@ -667,7 +667,7 @@ class Tester:
         )
 
         fee = self.assert_ok(f"/market/{self.station}/fee_rate")
-        feerate = self.assert_got(fee, "fee_rate", 0.2)
+        feerate = self.assert_got(fee, "fee_rate", 0.26)
         stone_tot = 50 / (1 - feerate)
         tx = self.assert_ok(f"/market/{self.station}/buy/stone/{stone_tot}")
         assert self.assert_got(tx, "removed_money", None) > 0
@@ -688,7 +688,7 @@ class Tester:
         player = self.assert_ok(f"/player/{self.id}")
         shipid = self.buy_a_ship()
         stationid = list(player["stations"].keys())[0]
-        all_upg = self.assert_ok(f"/station/{stationid}/shipyard/upgrade")
+        all_upg = self.assert_ok(f"/station/{stationid}/shipyard/upgrade/{shipid}")
         for (upgr, data) in all_upg.items():
             assert self.assert_got(data, "price", None) > 100.0
             assert len(self.assert_got(data, "description", None)) > 0
@@ -801,7 +801,7 @@ class Tester:
         self.tick_dur(cost["duration"])
 
         got = self.assert_ok(f"/station/{self.station}/shop/modules/{shipid}/upgrade/1")
-        self.assert_got(got, "cost", 5000)
+        self.assert_got(got, "cost", 4500)
         self.assert_got(got, "new-rank", 2)
 
         cost = self.assert_ok(f"/ship/{shipid}/navigate/{dest[0]}/{dest[1]}/{dest[2]}")
@@ -853,7 +853,9 @@ class Tester:
             assert afterwages > beforewages
             beforewages = afterwages
 
-        got = self.assert_ok(f"/station/{self.station}/crew/upgrade/trader")
+        station = self.assert_ok(f"/station/{self.station}")
+        trader = list(station["crew"].keys())[0]
+        got = self.assert_ok(f"/station/{self.station}/crew/upgrade/{trader}")
         self.assert_got(got, "new-rank", 2)
         self.assert_got(got, "cost", None)
         player = self.assert_ok(f"/player/{self.id}")

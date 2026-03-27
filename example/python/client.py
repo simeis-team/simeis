@@ -9,6 +9,10 @@ class Game:
         status = self.sdk.get_player_status()
         sta = list(status["stations"].keys())[0]
 
+        # On a besoin de savoir quelle planète miner pour équiper notre vaisseau
+        nearest_planet = self.sdk.scan_planets(sta)[0]
+        print("Targeting planet", nearest_planet)
+
         # Si on commence une nouvelle partie, on s'équipe
         if len(status["ships"]) == 0:
             # Acheter un vaisseau
@@ -17,8 +21,6 @@ class Game:
             self.sdk.buy_ship(sta, ship["id"])
 
             # En fonction de la planète, on achète un module de minage différent
-            nearest_planet = self.sdk.scan_planets(sta)[0]
-            print("Targeting planet", nearest_planet)
             if nearest_planet["solid"]:
                 mod = "Miner"
             else:
@@ -40,7 +42,6 @@ class Game:
         else:
             ship = status["ships"][0]
             self.sdk.return_station_and_unload(sta, ship["id"])
-            nearest_planet = self.sdk.scan_planets(sta)[0]
 
         # Cycle infini
         #     On va à la planète

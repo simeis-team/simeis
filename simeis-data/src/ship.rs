@@ -207,7 +207,7 @@ impl Ship {
         let mut finished = false;
         let mut dist_delta = self.stats.speed * tdelta;
         data.dist_done += dist_delta;
-        if data.dist_done > data.dist_tot {
+        if data.dist_done >= data.dist_tot {
             finished = true;
             let doverflow = data.dist_done - data.dist_tot;
             data.dist_done -= doverflow;

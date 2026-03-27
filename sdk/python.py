@@ -62,6 +62,7 @@ class SimeisSDK:
         else:
             with open(f"./{username}.json", "r") as f:
                 self.player = json.load(f)
+
         # Try to get the profile
         try:
             player = self.get("/player/{}".format(self.player["playerId"]))
@@ -83,6 +84,9 @@ class SimeisSDK:
     def get_ship_status(self, ship_id):
         return self.get(f"/ship/{ship_id}")
 
+    def get_station_status(self, sta):
+        return self.get(f"/station/{sta}")
+
     def shop_list_modules(self, sta):
         all = self.get(f"/station/{sta}/shop/modules")
         return sorted(all, key = lambda mod: mod["price"])
@@ -92,7 +96,7 @@ class SimeisSDK:
         return sorted(all, key = lambda ship: ship["price"])
 
     def buy_ship(self, sta, shipid):
-        return self.get(f"/station/{sta}/shipyard/buy/" + str(shipid))
+        return self.get(f"/station/{sta}/shipyard/buy/{shipid}")
 
     def buy_module_on_ship(self, sta, shipid, modtype):
         return self.get(f"/station/{sta}/shop/modules/{shipid}/buy/{modtype}")

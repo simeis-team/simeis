@@ -11,7 +11,7 @@
       overlays = [ rust-overlay.overlays.default ];
     };
 
-    rustpkg = pkgs.rust-bin.stable."1.85.0".default.override {
+    rustpkg = pkgs.rust-bin.stable."1.93.0".default.override {
       extensions = [ "rust-src" ];
     };
 
@@ -21,7 +21,7 @@
       cargo-audit
       cargo-vet
       mold
-      (python312.withPackages (p: with p; [
+      (python313.withPackages (p: with p; [
         requests
       ]))
     ];
