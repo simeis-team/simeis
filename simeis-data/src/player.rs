@@ -240,6 +240,8 @@ impl Player {
         station: &mut Station,
         crew_id: &CrewId,
     ) -> Result<(f64, u8), Errcode> {
-        station.upgrade_station_crew(&self.id, &mut self.money, crew_id).await
+        station
+            .upgrade_station_crew(&self.id, &mut self.money, crew_id)
+            .await
     }
 }

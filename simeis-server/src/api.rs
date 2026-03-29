@@ -438,7 +438,9 @@ async fn upgrade_station_crew(
     let station = get_station!(srv, station_id; player; galaxy);
     let mut station = station.write().await;
 
-    let res = player.upgrade_station_crew(station.deref_mut(), crew_id).await;
+    let res = player
+        .upgrade_station_crew(station.deref_mut(), crew_id)
+        .await;
     if res.is_ok() {
         drop(station);
         player.update_costs(&galaxy).await;
@@ -845,7 +847,9 @@ async fn unload_ship_cargo(
 
     let pid = player.id;
     let ship = player.ships.get_mut(id).unwrap();
-    let res = ship.unload_cargo(&resource, *amnt, station.deref_mut()).await;
+    let res = ship
+        .unload_cargo(&resource, *amnt, station.deref_mut())
+        .await;
 
     if let Ok(0.0) = res {
         srv.syslog

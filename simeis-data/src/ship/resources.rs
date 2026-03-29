@@ -75,7 +75,7 @@ impl Resource {
 
         #[cfg(feature = "extraspeed")]
         {
-            base /= 1000.0;            
+            base /= 1000.0;
         }
         match self {
             Resource::Stone | Resource::Hydrogen => base,

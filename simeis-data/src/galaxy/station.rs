@@ -6,7 +6,7 @@ use tokio::sync::RwLock;
 
 use crate::crew::{Crew, CrewId, CrewMember, CrewMemberType};
 use crate::errors::Errcode;
-use crate::market::{Market, MarketTx, fee_rate};
+use crate::market::{fee_rate, Market, MarketTx};
 use crate::player::{Player, PlayerId};
 use crate::ship::cargo::ShipCargo;
 use crate::ship::module::ShipModuleId;
@@ -90,7 +90,11 @@ impl Station {
         CARGO_BASE_PRICE.powf((cap - STATION_INIT_CARGO) / CARGO_PRICE_INCDIV)
     }
 
-    pub async fn buy_cargo(&mut self, player: &mut Player, amnt: &usize) -> Result<ShipCargo, Errcode> {
+    pub async fn buy_cargo(
+        &mut self,
+        player: &mut Player,
+        amnt: &usize,
+    ) -> Result<ShipCargo, Errcode> {
         let cost = (*amnt as f64) * self.cargo_price(&player.id).await;
         if cost > player.money {
             return Err(Errcode::NotEnoughMoney(player.money, cost));
@@ -132,9 +136,7 @@ impl Station {
             return Err(Errcode::CrewNotNeeded);
         }
         ship.pilot = Some(id);
-        ship.crew
-            .0
-            .insert(id, pd.idle_crew.0.remove(&id).unwrap());
+        ship.crew.0.insert(id, pd.idle_crew.0.remove(&id).unwrap());
         ship.update_perf_stats();
         Ok(())
     }
@@ -163,9 +165,7 @@ impl Station {
             return Err(Errcode::CrewNotNeeded);
         }
         smod.operator = Some(id);
-        ship.crew
-            .0
-            .insert(id, pd.idle_crew.0.remove(&id).unwrap());
+        ship.crew.0.insert(id, pd.idle_crew.0.remove(&id).unwrap());
         Ok(())
     }
 
@@ -205,8 +205,8 @@ impl Station {
         market: &mut Market,
     ) -> Result<MarketTx, Errcode> {
         self.ensure_has_player_data(&player.id).await;
-        let apd = self.player_data.read().await;
-        let pd = apd.get(&player.id).unwrap();
+        let mut apd = self.player_data.write().await;
+        let pd = apd.get_mut(&player.id).unwrap();
         let Some(trader) = pd.trader else {
             return Err(Errcode::NoTraderAssigned);
         };
@@ -219,13 +219,10 @@ impl Station {
             return Err(Errcode::SellNothing);
         }
 
-
         let tx = market.sell(cm, resource, amnt);
         player.money += tx.added_money.unwrap();
         player.score += tx.added_money.unwrap();
         let (r, a) = tx.removed_cargo.unwrap();
-        let mut apd = self.player_data.write().await;
-        let pd = apd.get_mut(&player.id).unwrap();
         let unloaded = pd.cargo.unload(&r, a);
         debug_assert_eq!(unloaded, a);
         Ok(tx)
@@ -235,8 +232,8 @@ impl Station {
         if self.position != ship.position {
             return Err(Errcode::ShipNotInStation);
         }
-        let apd = self.player_data.read().await;
-        let Some(pd) = apd.get(&ship.owner) else {
+        let mut apd = self.player_data.write().await;
+        let Some(pd) = apd.get_mut(&ship.owner) else {
             return Err(Errcode::NoFuelInCargo);
         };
         let Some(qty) = pd.cargo.resources.get(&Resource::Fuel) else {
@@ -248,8 +245,6 @@ impl Station {
         debug_assert!(ship.fuel_tank >= 0.0);
         debug_assert!(ship.fuel_tank_capacity >= ship.fuel_tank);
         let needed = ship.fuel_tank_capacity - ship.fuel_tank;
-        let mut apd = self.player_data.write().await;
-        let pd = apd.get_mut(&ship.owner).unwrap();
         let unloaded = pd.cargo.unload(&Resource::Fuel, needed.min(*qty));
         ship.fuel_tank += unloaded;
         debug_assert!(ship.fuel_tank_capacity >= ship.fuel_tank);
@@ -260,8 +255,8 @@ impl Station {
         if self.position != ship.position {
             return Err(Errcode::ShipNotInStation);
         }
-        let apd = self.player_data.read().await;
-        let Some(pd) = apd.get(&ship.owner) else {
+        let mut apd = self.player_data.write().await;
+        let Some(pd) = apd.get_mut(&ship.owner) else {
             return Err(Errcode::NoHullPlateInCargo);
         };
         let Some(qty) = pd.cargo.resources.get(&Resource::HullPlate) else {
@@ -276,8 +271,6 @@ impl Station {
         if amnt == 0.0 {
             return Ok(0.0);
         }
-        let mut apd = self.player_data.write().await;
-        let pd = apd.get_mut(&ship.owner).unwrap();
         let unloaded = pd.cargo.unload(&Resource::HullPlate, amnt);
         ship.hull_decay -= unloaded;
         debug_assert!(
@@ -302,11 +295,14 @@ impl Station {
         let Some(pd) = apd.get(id) else {
             return 0.0;
         };
-        pd.cargo.resources.iter().map(|(r, amnt)| r.base_price() * amnt).sum()
+        pd.cargo
+            .resources
+            .iter()
+            .map(|(r, amnt)| r.base_price() * amnt)
+            .sum()
     }
 
     pub async fn add_resource(&mut self, id: &PlayerId, resource: &Resource, amnt: f64) -> f64 {
-
         self.ensure_has_player_data(id).await;
         let mut apd = self.player_data.write().await;
         let pd = apd.get_mut(id).unwrap();
@@ -344,7 +340,12 @@ impl Station {
         pd.crew.sum_wages() + pd.idle_crew.sum_wages()
     }
 
-    pub async fn upgrade_station_crew(&mut self, id: &PlayerId, money: &mut f64, crew: &CrewId) -> Result<(f64, u8), Errcode> {
+    pub async fn upgrade_station_crew(
+        &mut self,
+        id: &PlayerId,
+        money: &mut f64,
+        crew: &CrewId,
+    ) -> Result<(f64, u8), Errcode> {
         let mut apd = self.player_data.write().await;
         let Some(pd) = apd.get_mut(id) else {
             return Err(Errcode::CrewMemberNotFound(*crew));
