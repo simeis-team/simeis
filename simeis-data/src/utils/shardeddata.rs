@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use tokio::sync::RwLock;
+use mea::rwlock::RwLock;
 
 pub trait ShardDataKey: Ord + Clone {
     fn get_shard_idx(&self, totcap: usize) -> usize;

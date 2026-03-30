@@ -2,12 +2,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use tokio::sync::mpsc::{Receiver, Sender};
-use tokio::sync::RwLock;
-use tokio::task::JoinHandle;
+use mea::mpsc::{BoundedReceiver, BoundedSender, RecvError};
+use mea::rwlock::RwLock;
+use compio::runtime::JoinHandle;
 
 #[cfg(not(feature = "testing"))]
-use tokio::sync::mpsc::error::TryRecvError;
+use mea::mpsc::TryRecvError;
 
 use base64::{prelude::BASE64_STANDARD, Engine};
 use rand::{Rng, RngExt};
@@ -44,13 +44,13 @@ pub struct Game {
     pub syslog: SyslogSend,
     pub fifo_events: SyslogFifo,
     pub tstart: f64,
-    pub send_sig: Sender<GameSignal>,
+    pub send_sig: BoundedSender<GameSignal>,
     pub init_station: (StationId, SpaceCoord),
 }
 
 impl Game {
     pub async fn init() -> (JoinHandle<()>, Game) {
-        let (send_stop, recv_stop) = tokio::sync::mpsc::channel(5);
+        let (send_stop, recv_stop) = mea::mpsc::bounded(5);
         let (syssend, sysrecv) = SyslogSend::channel();
         let tstart = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -72,12 +72,15 @@ impl Game {
 
         let thread_data = data.clone();
         // TODO Reduce stack size from this task, > 1024
-        let thread = tokio::spawn(async move { thread_data.start(recv_stop, sysrecv).await });
+        // TODO DEV FIXME    Requires a `move` somewhere here
+        let thread = compio::runtime::spawn((async move || {
+            thread_data.start(recv_stop, sysrecv).await
+        })());
         (thread, data)
     }
 
     #[allow(unused_variables, unused_mut)]
-    pub async fn start(&self, mut stop: Receiver<GameSignal>, syslog: SyslogRecv) {
+    pub async fn start(&self, mut stop: BoundedReceiver<GameSignal>, syslog: SyslogRecv) {
         log::debug!("Started thread");
         let sleepmin_iter = ITER_PERIOD;
         let mut last_iter = Instant::now();
@@ -90,28 +93,32 @@ impl Game {
 
             #[cfg(not(feature = "testing"))]
             let got = match stop.try_recv() {
-                Ok(res) => Some(res),
-                Err(TryRecvError::Empty) => Some(GameSignal::Tick),
-                Err(e) => {
-                    log::error!("Error while getting next tick / stop signal:  {e:?}");
-                    None
+                Ok(res) => Ok(res),
+                Err(TryRecvError::Empty) => Ok(GameSignal::Tick),
+                Err(TryRecvError::Disconnected) => {
+                    log::error!("Can't get next tick / stop signal: disconnected");
+                    Err(RecvError::Disconnected)
                 }
             };
 
             match got {
-                Some(GameSignal::Tick) => {
+                Ok(GameSignal::Tick) => {
                     self.threadloop(&mut rng, &mut market_last_tick, &syslog)
                         .await;
 
                     #[cfg(not(feature = "testing"))]
                     {
                         let took = Instant::now() - last_iter;
-                        tokio::time::sleep(sleepmin_iter.saturating_sub(took)).await;
+                        crate::utils::sleep(sleepmin_iter.saturating_sub(took)).await;
                         last_iter = Instant::now();
                     }
                 }
 
-                None | Some(GameSignal::Stop) => break 'main,
+                Ok(GameSignal::Stop) => break 'main,
+                Err(RecvError::Disconnected) => {
+                    log::error!("Got disconnected channel in game thread");
+                    break 'main;
+                }
             }
         }
         log::info!("Exiting game thread");

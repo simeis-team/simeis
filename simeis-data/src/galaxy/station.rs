@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use rand::RngExt;
 use serde::{Deserialize, Serialize};
-use tokio::sync::RwLock;
+use mea::rwlock::RwLock;
 
 use crate::crew::{Crew, CrewId, CrewMember, CrewMemberType};
 use crate::errors::Errcode;

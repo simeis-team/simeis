@@ -5,7 +5,7 @@ use std::sync::Arc;
 use rand::rngs::ThreadRng;
 use rand::RngExt;
 
-use tokio::sync::RwLock;
+use mea::rwlock::RwLock;
 
 pub mod planet;
 pub mod scan;

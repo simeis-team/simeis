@@ -206,6 +206,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d07550c9036bf2ae0c684c4297d503f838287c83c53686d05370d0e139ae570"
 
 [[package]]
+name = "compio"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b84ee96a86948d04388f3a0b8c36b9f0a6b40b3528ac0d65737e53632fb37fe"
+dependencies = [
+ "compio-buf",
+ "compio-driver",
+ "compio-log",
+ "compio-runtime",
+]
+
+[[package]]
 name = "compio-buf"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -801,6 +813,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mea"
+version = "0.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6747f54621d156e1b47eb6b25f39a941b9fc347f98f67d25d8881ff99e8ed832"
+dependencies = [
+ "slab",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1160,7 +1181,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1536,14 +1557,15 @@ name = "simeis-data"
 version = "0.1.0"
 dependencies = [
  "base64",
+ "compio",
  "env_logger",
  "log",
+ "mea",
  "rand",
  "rand_distr",
  "serde",
  "serde_json",
  "strum",
- "tokio",
 ]
 
 [[package]]
@@ -1551,15 +1573,16 @@ name = "simeis-server"
 version = "0.1.1"
 dependencies = [
  "base64",
+ "compio",
  "env_logger",
  "log",
+ "mea",
  "ntex",
  "rand",
  "serde",
  "serde_json",
  "simeis-data",
  "strum",
- "tokio",
  "urlencoding",
 ]
 
@@ -1678,15 +1701,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f60246a4944f24f6e018aa17cdeffb7818b76356965d03b07d6a9886e8962185"
 dependencies = [
  "cfg-if",
-]
-
-[[package]]
-name = "tokio"
-version = "1.50.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27ad5e34374e03cfffefc301becb44e9dc3c17584f414349ebe29ed26661822d"
-dependencies = [
- "pin-project-lite",
 ]
 
 [[package]]

@@ -1,8 +1,10 @@
 #![allow(clippy::type_complexity)]
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use tokio::sync::mpsc::{error::TryRecvError, Receiver, Sender};
-use tokio::sync::{Mutex, RwLock};
+use mea::mutex::Mutex;
+use mea::rwlock::RwLock;
+use mea::mpsc::{BoundedReceiver, BoundedSender};
+use mea::mpsc::TryRecvError;
 
 use serde::{Deserialize, Serialize};
 use strum::IntoStaticStr;
@@ -69,13 +71,13 @@ impl<T> Fifo<T> {
 
 #[derive(Clone)]
 pub struct SyslogSend {
-    sender: Sender<SyslogData>,
+    sender: BoundedSender<SyslogData>,
     tstart: std::time::Instant,
 }
 
 impl SyslogSend {
     pub fn channel() -> (SyslogSend, SyslogRecv) {
-        let (sender, recv) = tokio::sync::mpsc::channel(100);
+        let (sender, recv) = mea::mpsc::bounded(100);
         let tstart = std::time::Instant::now();
         let syslogsend = SyslogSend { sender, tstart };
         (syslogsend, SyslogRecv::init(recv, tstart))
@@ -90,13 +92,13 @@ impl SyslogSend {
 pub type SyslogFifo = Arc<RwLock<BTreeMap<PlayerId, Arc<RwLock<Fifo<(f64, SyslogEvent)>>>>>>;
 
 pub struct SyslogRecv {
-    recv: Mutex<Receiver<SyslogData>>,
+    recv: Mutex<BoundedReceiver<SyslogData>>,
     pub(crate) fifo: SyslogFifo,
     tstart: std::time::Instant,
 }
 
 impl SyslogRecv {
-    pub fn init(recv: Receiver<SyslogData>, tstart: std::time::Instant) -> SyslogRecv {
+    pub fn init(recv: BoundedReceiver<SyslogData>, tstart: std::time::Instant) -> SyslogRecv {
         SyslogRecv {
             recv: Mutex::new(recv),
             tstart,
