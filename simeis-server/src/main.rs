@@ -9,8 +9,6 @@ pub type GameState = ntex::web::types::State<Game>;
 
 #[ntex::main]
 async fn main() -> std::io::Result<()> {
-    // console_subscriber::init();
-
     #[cfg(not(feature = "testing"))]
     let port = 8080;
 
@@ -18,6 +16,7 @@ async fn main() -> std::io::Result<()> {
     let port = 9345;
 
     env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
         .parse_default_env()
         .filter_module("ntex_server", log::LevelFilter::Warn)
         .filter_module("ntex_io", log::LevelFilter::Warn)
@@ -27,7 +26,7 @@ async fn main() -> std::io::Result<()> {
 
     log::info!("Running on http://0.0.0.0:{port}");
     let (gamethread, state) = Game::init().await;
-    let stop_state = state.clone();
+    let stop_chan = state.send_sig.clone();
 
     let res = web::HttpServer::new(async move || {
         let game_state = state.clone();
@@ -36,13 +35,14 @@ async fn main() -> std::io::Result<()> {
             .state(game_state)
             .configure(api::configure)
     })
-    // .stop_runtime()
+    .workers(64)
+    .shutdown_timeout(2.into())
     .bind(("0.0.0.0", port))?
     .run()
     .await;
 
     log::info!("Server stopped, stopping game thread");
-    stop_state.send_sig.send(GameSignal::Stop).await.unwrap();
+    stop_chan.send(GameSignal::Stop).await.unwrap();
     gamethread.await.unwrap();
     res
 }
