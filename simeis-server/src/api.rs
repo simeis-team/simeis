@@ -1,3 +1,13 @@
+// Mutex acquisition order
+// - Player index
+// - Player list
+// - Player
+// - Galaxy
+// - Station
+// - Market
+// - SyslogFifo
+// - PlayerFifo
+
 use std::collections::BTreeMap;
 use std::ops::DerefMut;
 use std::str::FromStr;
@@ -81,16 +91,6 @@ macro_rules! get_station {
         $galaxy.get_station(&station_coord).await.unwrap()
     }};
 }
-
-// Mutex acquisition order
-// - Player index
-// - Player list
-// - Player
-// - Galaxy
-// - Station
-// - Market
-// - SyslogFifo
-// - PlayerFifo
 
 fn get_player_key(req: &HttpRequest) -> Option<PlayerKey> {
     for q in req.query_string().split("&") {
