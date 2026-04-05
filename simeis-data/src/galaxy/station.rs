@@ -106,6 +106,13 @@ impl Station {
         Ok(pd.cargo.clone())
     }
 
+    pub async fn add_cargo_cap(&mut self, player: &PlayerId, amnt: usize) -> ShipCargo {
+        self.ensure_has_player_data(player).await;
+        let mut pd = self.player_data.get(player).unwrap().write().await;
+        pd.cargo.capacity += amnt as f64;
+        pd.cargo.clone()
+    }
+
     pub async fn assign_trader(&mut self, pid: &PlayerId, id: CrewId) -> Result<(), Errcode> {
         self.ensure_has_player_data(pid).await;
         let mut pd = self.player_data.get(pid).unwrap().write().await;
@@ -118,62 +125,66 @@ impl Station {
         Ok(())
     }
 
-    pub async fn onboard_pilot(&mut self, id: CrewId, ship: &mut Ship) -> Result<(), Errcode> {
+    pub async fn onboard_pilot(&mut self, ship: &mut Ship, id: &CrewId) -> Result<(), Errcode> {
         self.ensure_has_player_data(&ship.owner).await;
         let mut pd = self.player_data.get(&ship.owner).unwrap().write().await;
-        let Some(cm) = pd.idle_crew.0.get(&id) else {
-            return Err(Errcode::CrewMemberNotIdle(id));
+        let Some(cm) = pd.idle_crew.0.get(id) else {
+            return Err(Errcode::CrewMemberNotIdle(*id));
         };
-
         if cm.member_type != CrewMemberType::Pilot {
             return Err(Errcode::WrongCrewType(CrewMemberType::Pilot));
         }
-
-        if ship.pilot.is_some() {
-            return Err(Errcode::CrewNotNeeded);
-        }
-        ship.pilot = Some(id);
-        ship.crew.0.insert(id, pd.idle_crew.0.remove(&id).unwrap());
+        ship.pilot = Some(*id);
+        let pilot = pd.idle_crew.0.remove(&id).unwrap();
+        ship.crew.0.insert(*id, pilot);
         ship.update_perf_stats();
         Ok(())
     }
 
     pub async fn onboard_operator(
         &mut self,
-        id: CrewId,
         ship: &mut Ship,
-        modid: &ShipModuleId,
+        id: &CrewId,
+        mod_id: &ShipModuleId,
     ) -> Result<(), Errcode> {
         self.ensure_has_player_data(&ship.owner).await;
-        let mut pd = self.player_data.get(&ship.owner).unwrap().write().await;
-        let Some(cm) = pd.idle_crew.0.get(&id) else {
-            return Err(Errcode::CrewMemberNotIdle(id));
+        let cm = self.get_idle_crew(&ship.owner, id, CrewMemberType::Operator).await?;
+        let Some(module) = ship.modules.get_mut(mod_id) else {
+            return Err(Errcode::NoSuchModule(*mod_id));
         };
-
-        if cm.member_type != CrewMemberType::Operator {
-            return Err(Errcode::WrongCrewType(CrewMemberType::Pilot));
-        }
-
-        let Some(smod) = ship.modules.get_mut(modid) else {
-            return Err(Errcode::NoSuchModule(*modid));
-        };
-        if !smod.need(&cm.member_type) {
+        if module.operator.is_some() {
             return Err(Errcode::CrewNotNeeded);
         }
-        smod.operator = Some(id);
-        ship.crew.0.insert(id, pd.idle_crew.0.remove(&id).unwrap());
+        if !module.need(&cm.member_type) {
+            return Err(Errcode::CrewNotNeeded);
+        }
+        module.operator = Some(*id);
+        let mut pd = self.player_data.get(&ship.owner).unwrap().write().await;
+        ship.crew.0.insert(*id, pd.idle_crew.0.remove(&id).unwrap());
         Ok(())
+    }
+
+    pub async fn get_idle_crew(&mut self, pid: &PlayerId, id: &CrewId, ctype: CrewMemberType) -> Result<CrewMember, Errcode> {
+        self.ensure_has_player_data(pid).await;
+        let pd = self.player_data.get(pid).unwrap().write().await;
+        let Some(cm) = pd.idle_crew.0.get(id) else {
+            return Err(Errcode::CrewMemberNotIdle(*id));
+        };
+        if cm.member_type != ctype {
+            return Err(Errcode::WrongCrewType(ctype));
+        }
+        Ok(cm.clone())
     }
 
     pub async fn buy_resource(
         &mut self,
+        market: &Market,
+        player: &PlayerId,
         resource: &Resource,
         amnt: f64,
-        player: &mut Player,
-        market: &Market,
     ) -> Result<MarketTx, Errcode> {
-        self.ensure_has_player_data(&player.id).await;
-        let mut pd = self.player_data.get(&player.id).unwrap().write().await;
+        self.ensure_has_player_data(&player).await;
+        let mut pd = self.player_data.get(&player).unwrap().write().await;
         let Some(trader) = pd.trader else {
             return Err(Errcode::NoTraderAssigned);
         };
@@ -183,10 +194,7 @@ impl Station {
         if amnt == 0.0 {
             return Err(Errcode::BuyNothing);
         }
-
         let tx = market.buy(cm, resource, amnt).await;
-        player.money -= tx.removed_money.unwrap();
-        player.score -= tx.removed_money.unwrap();
         let (r, a) = tx.added_cargo.unwrap();
         pd.cargo.add_resource(&r, a);
         Ok(tx)
@@ -194,13 +202,13 @@ impl Station {
 
     pub async fn sell_resource(
         &mut self,
+        market: &Market,
+        player: &PlayerId,
         resource: &Resource,
         amnt: f64,
-        player: &mut Player,
-        market: &Market,
     ) -> Result<MarketTx, Errcode> {
-        self.ensure_has_player_data(&player.id).await;
-        let mut pd = self.player_data.get(&player.id).unwrap().write().await;
+        self.ensure_has_player_data(&player).await;
+        let mut pd = self.player_data.get(&player).unwrap().write().await;
         let Some(trader) = pd.trader else {
             return Err(Errcode::NoTraderAssigned);
         };
@@ -212,10 +220,7 @@ impl Station {
         if amnt <= 0.0 {
             return Err(Errcode::SellNothing);
         }
-
         let tx = market.sell(cm, resource, amnt).await;
-        player.money += tx.added_money.unwrap();
-        player.score += tx.added_money.unwrap();
         let (r, a) = tx.removed_cargo.unwrap();
         let unloaded = pd.cargo.unload(&r, a);
         debug_assert_eq!(unloaded, a);
@@ -355,8 +360,7 @@ impl Station {
     }
 
     pub async fn hire_crew(&mut self, id: &PlayerId, crewtype: CrewMemberType) -> CrewId {
-        let mut rng = rand::rng();
-        let crewid = rng.random();
+        let crewid = rand::rng().random();
         let member = CrewMember::from(crewtype);
 
         self.ensure_has_player_data(id).await;

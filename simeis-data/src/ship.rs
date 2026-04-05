@@ -4,8 +4,9 @@ use std::collections::BTreeMap;
 
 use crate::crew::{Crew, CrewId, CrewMemberType};
 use crate::errors::Errcode;
+use crate::galaxy::planet::Planet;
 use crate::galaxy::station::Station;
-use crate::galaxy::{translation, Galaxy, SpaceCoord};
+use crate::galaxy::{translation, SpaceCoord};
 use crate::player::PlayerId;
 
 pub mod cargo;
@@ -253,12 +254,9 @@ impl Ship {
         Ok(self.position)
     }
 
-    pub async fn start_extraction(&mut self, galaxy: &Galaxy) -> Result<ExtractionInfo, Errcode> {
+    pub async fn start_extraction(&mut self, planet: &Planet) -> Result<ExtractionInfo, Errcode> {
         let ShipState::Idle = self.state else {
             return Err(Errcode::ShipNotIdle);
-        };
-        let Some(planet) = galaxy.get_planet(&self.position).await else {
-            return Err(Errcode::CannotExtractWithoutPlanet);
         };
         log::debug!(
             "Ship {} started extraction on planet {:?}",

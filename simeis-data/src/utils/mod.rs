@@ -1,5 +1,7 @@
 mod shardeddata;
-use std::{pin::Pin, task::{Context, Poll}, time::{Duration, Instant}};
+use std::{future::Future, pin::Pin, task::{Context, Poll}, time::{Duration, Instant}};
+
+pub type BoxFuture<'a, T> = std::pin::Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 pub use shardeddata::ShardedLockedData;
 
