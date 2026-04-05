@@ -406,7 +406,7 @@ impl SimeisSDK {
             if amnt == 0.0 {
                 continue;
             }
-            let got = self.get(format!("/ship/{ship_id}/unload/{res}/{amnt}"))?;
+            let got = self.get(format!("/ship/{ship_id}/unload/{station_id}/{res}/{amnt}"))?;
             results.push(got);
         }
         Ok(results)

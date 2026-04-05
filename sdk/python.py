@@ -220,7 +220,7 @@ class SimeisSDK:
             assert amnt > 0.0
             if amnt == 0.0:
                 continue
-            result.append(self.get(f"/ship/{ship_id}/unload/{res}/{amnt}"))
+            result.append(self.get(f"/ship/{ship_id}/unload/{sta}/{res}/{amnt}"))
 
         return result
 
