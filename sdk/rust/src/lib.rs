@@ -391,7 +391,7 @@ impl SimeisSDK {
     }
     pub fn scan_planets(&self, station_id: u64) -> Result<Vec<Value>, Value> {
         let station = self.get_station_status(station_id)?;
-        let all_scanned = self.get(format!("/station/{station_id}/scan"))?;
+        let all_scanned = self.post(format!("/station/{station_id}/scan"))?;
         let mut all_planets = json_get_list("planets", &all_scanned).unwrap();
         all_planets.sort_by(|a, b| {
             let stapos = get_position(&station).unwrap();
@@ -403,10 +403,28 @@ impl SimeisSDK {
         });
         Ok(all_planets.iter().map(|v| (*v).clone()).collect())
     }
-    pub fn mine(&self, ship_id: u64) -> ApiResult {
+    pub fn start_extraction(&self, ship_id: u64) -> ApiResult {
         self.post(format!("/ship/{ship_id}/extraction/start"))
     }
-    pub fn return_station_and_unload(
+    pub fn unload(&self, station_id: u64, ship_id: u64, res: &str, amnt: f64) -> ApiResult {
+        self.post(format!("/ship/{ship_id}/unload/{station_id}/{res}/{amnt}"))
+    }
+    pub fn unload_all(&self, station_id: u64, ship_id: u64) -> Result<Vec<Value>, Value> {
+        let ship = self.get_ship_status(ship_id)?;
+        let cargo = json_get_dict("cargo.resources", &ship).unwrap();
+        let mut unloaded = vec![];
+        for (res, amnt) in cargo {
+            let amnt = amnt.as_f64().unwrap();
+            assert!(amnt > 0.0);
+            if amnt == 0.0 {
+                continue;
+            }
+            let got = self.unload(station_id, ship_id, res, amnt)?;
+            unloaded.push(got);
+        }
+        Ok(unloaded)
+    }
+    pub fn return_station_and_unload_all(
         &self,
         station_id: u64,
         ship_id: u64,
@@ -418,19 +436,7 @@ impl SimeisSDK {
         if get_position(&ship).unwrap() != stapos {
             self.travel(ship_id, stapos, true)?;
         }
-
-        let cargo = json_get_dict("cargo.resources", &ship).unwrap();
-        let mut results = vec![];
-        for (res, amnt) in cargo {
-            let amnt = amnt.as_f64().unwrap();
-            assert!(amnt > 0.0);
-            if amnt == 0.0 {
-                continue;
-            }
-            let got = self.post(format!("/ship/{ship_id}/unload/{station_id}/{res}/{amnt}"))?;
-            results.push(got);
-        }
-        Ok(results)
+        self.unload_all(station_id, ship_id)
     }
     pub fn get_station_resources(&self, station_id: u64) -> Result<HashMap<String, f64>, Value> {
         let station = self.get_station_status(station_id)?;
@@ -454,5 +460,9 @@ impl SimeisSDK {
     }
     pub fn buy_resource(&self, station_id: u64, resource: &str, amnt: f64) -> ApiResult {
         self.post(format!("/market/{station_id}/buy/{resource}/{amnt}"))
+    }
+
+    pub fn get_syslogs(&self) -> ApiResult {
+        self.get("/syslogs")
     }
 }

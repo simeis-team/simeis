@@ -210,7 +210,7 @@ class SimeisSDK:
 
     def scan_planets(self, sta):
         station = self.get(f"/station/{sta}")
-        planets = self.get(f"/station/{sta}/scan")["planets"]
+        planets = self.post(f"/station/{sta}/scan")["planets"]
         return  sorted(planets,
             key=lambda pla: get_dist(station["position"], pla["position"])
         )
@@ -218,6 +218,9 @@ class SimeisSDK:
     def mine(self, ship_id):
         return self.post(f"/ship/{ship_id}/extraction/start")
 
+    # TODO Unload
+    # TODO Unload_all
+    # TODO Rename to return_station_and_unload_all
     def return_station_and_unload(self, sta, ship_id):
         ship = self.get(f"/ship/{ship_id}")
         station = self.get(f"/station/{sta}")
@@ -245,3 +248,5 @@ class SimeisSDK:
 
     def buy_resource(self, sta, res, amnt):
         return self.post(f"/market/{sta}/buy/{res}/{amnt}")
+
+    # TODO get_syslogs
