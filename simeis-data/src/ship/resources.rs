@@ -60,8 +60,7 @@ impl Resource {
             Resource::Iron | Resource::Oxygen | Resource::Alcohol => 4.0 * base,
             Resource::Copper | Resource::Helium | Resource::Oil => 12.0 * base,
             Resource::Gold | Resource::Ozone | Resource::SulfuricAcid => 16.0 * base,
-            Resource::Fuel => base / 2.0,
-            Resource::Hull => base / 3.0,
+            Resource::Fuel | Resource::Hull => base / 2.0,
         }
     }
 

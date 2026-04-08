@@ -10,6 +10,36 @@ pub type IndustryUnitId = u32;
 
 const UNIT_UPG_POWF_DIV: f64 = 75.0;
 
+// TODO (#12) Get from configuration file
+const SBASE_REQ: f64 = 1.5;
+const ABASE_REQ: f64 = 7.5;
+
+// Because all resources of the same level have the same base price
+// The resource cost (in credits) should be the same whatever the unit is
+// As long as it's the same class (simple / advanced)
+pub const fn get_simple_industry_resources_cost() -> f64 {
+    (SBASE_REQ * Resource::Hydrogen.base_price())
+        + (SBASE_REQ * 0.2 * Resource::Oxygen.base_price())
+        + (SBASE_REQ * 1.25 * Resource::Carbon.base_price())
+        + (SBASE_REQ * 0.4 * Resource::Water.base_price())
+}
+
+pub const fn get_advanced_industry_resources_cost() -> f64 {
+    (ABASE_REQ * Resource::Carbon.base_price())
+        + (ABASE_REQ * 0.4 * Resource::Oil.base_price())
+        + (ABASE_REQ * 0.2 * Resource::Helium.base_price())
+}
+
+pub const fn get_sbase_produce_base() -> f64 {
+    let scost = get_simple_industry_resources_cost();
+    scost / (1.05 * Resource::Fuel.base_price())
+}
+
+pub const fn get_abase_produce_base() -> f64 {
+    let acost = get_advanced_industry_resources_cost();
+    acost / (1.75 * Resource::Fuel.base_price())
+}
+
 #[derive(
     EnumIter,
     EnumString,
@@ -25,8 +55,11 @@ const UNIT_UPG_POWF_DIV: f64 = 75.0;
 )]
 #[strum(ascii_case_insensitive)]
 pub enum IndustryUnitType {
-    FuelRefinery,
-    HullFoundry,
+    SimpleFuelRefinery,
+    AdvancedFuelRefinery,
+
+    SimpleHullFoundry,
+    AdvancedHullFoundry,
 }
 
 impl IndustryUnitType {
@@ -81,20 +114,34 @@ impl IndustryUnit {
     }
 
     #[inline]
-    pub fn input(&self, oprank: u8) -> Vec<(Resource, f64)> {
-        let div = 1.0 / ((oprank as f64) + 1.0);
+    fn input(&self, oprank: u8) -> Vec<(Resource, f64)> {
+        debug_assert_ne!(oprank, 1);
+        let div = 1.0 / (std::f64::consts::E + (oprank as f64) - 1.0).ln();
+
+        let sbase = SBASE_REQ;
+        let abase = ABASE_REQ;
         match self.unittype {
-            IndustryUnitType::FuelRefinery => vec![
-                (Resource::Carbon, 1.9),
-                (Resource::Hydrogen, 1.2),
-                (Resource::Oxygen, 0.3),
-                (Resource::Water, 0.5),
+            IndustryUnitType::SimpleFuelRefinery => vec![
+                (Resource::Hydrogen, sbase),      // Gas 1
+                (Resource::Oxygen, sbase * 0.2),  // Gas 2
+                (Resource::Carbon, sbase * 1.25), // Solid 1
+                (Resource::Water, sbase * 0.4),   // Liquid 1
             ],
-            IndustryUnitType::HullFoundry => vec![
-                (Resource::Carbon, 0.5),
-                (Resource::Iron, 0.7),
-                (Resource::Hydrogen, 0.3),
-                (Resource::Water, 0.5),
+            IndustryUnitType::SimpleHullFoundry => vec![
+                (Resource::Carbon, sbase),           // Solid 1
+                (Resource::Iron, sbase * 0.2),       // Solid 2
+                (Resource::Hydrogen, sbase * 1.25),  // Gas 1
+                (Resource::Water, 0.5 * 0.4),        // Liquid 1
+            ],
+            IndustryUnitType::AdvancedFuelRefinery => vec![
+                (Resource::Carbon, abase),       // Solid 1
+                (Resource::Oil, abase * 0.4),    // Liquid 3
+                (Resource::Helium, abase * 0.2), // Gas 3
+            ],
+            IndustryUnitType::AdvancedHullFoundry => vec![
+                (Resource::Hydrogen, abase),     // Gas 1
+                (Resource::Copper, abase * 0.4), // Solid 3
+                (Resource::Oil, abase * 0.2),    // Liquid 3
             ],
         }
         .into_iter()
@@ -106,11 +153,17 @@ impl IndustryUnit {
     }
 
     #[inline]
-    pub fn output(&self, oprank: u8) -> Vec<(Resource, f64)> {
-        let pown = ((oprank as f64) + 1.0).ln();
+    fn output(&self, oprank: u8) -> Vec<(Resource, f64)> {
+        debug_assert_ne!(oprank, 1);
+        let pown = (oprank as f64).ln();
+
+        let sbase = get_sbase_produce_base();
+        let abase = get_abase_produce_base();
         match self.unittype {
-            IndustryUnitType::FuelRefinery => vec![(Resource::Fuel, 1.0)],
-            IndustryUnitType::HullFoundry => vec![(Resource::Hull, 1.0)],
+            IndustryUnitType::SimpleFuelRefinery => vec![(Resource::Fuel, sbase)],
+            IndustryUnitType::SimpleHullFoundry => vec![(Resource::Hull, sbase)],
+            IndustryUnitType::AdvancedFuelRefinery => vec![(Resource::Fuel, abase)],
+            IndustryUnitType::AdvancedHullFoundry => vec![(Resource::Hull, abase)],
         }
         .into_iter()
         .map(|(res, amnt)| {
