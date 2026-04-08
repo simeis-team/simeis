@@ -1,7 +1,12 @@
+use std::collections::BTreeMap;
+
+use rand::RngExt;
 use serde::{Deserialize, Serialize};
 use strum::{EnumIter, EnumString, IntoStaticStr};
 
-use crate::{crew::{CrewId, CrewMemberType}, ship::resources::Resource};
+use crate::{crew::{CrewId, CrewMember, CrewMemberType}, ship::resources::Resource};
+
+pub type IndustryUnitId = u32;
 
 const UNIT_UPG_POWF_DIV: f64 = 75.0;
 
@@ -26,10 +31,14 @@ pub enum IndustryUnitType {
 
 impl IndustryUnitType {
     pub fn new_unit(self) -> IndustryUnit {
+        let unitid = rand::rng().random();
         IndustryUnit {
+            id: unitid,
             operator: None,
             unittype: self,
             rank: 1,
+            resources_required: vec![],
+            resources_created: vec![],
         }
     }
 
@@ -41,9 +50,13 @@ impl IndustryUnitType {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct IndustryUnit {
-    pub operator: Option<CrewId>,
+    pub id: IndustryUnitId,
     pub unittype: IndustryUnitType,
     pub rank: u8,
+
+    operator: Option<CrewId>,
+    resources_required: Vec<(Resource, f64)>,
+    resources_created: Vec<(Resource, f64)>,
 }
 
 impl IndustryUnit {
@@ -53,13 +66,18 @@ impl IndustryUnit {
         self.unittype.get_price_buy().powf(num / UNIT_UPG_POWF_DIV)
     }
 
-    pub fn need(&self, ctype: &CrewMemberType) -> bool {
-        match self.unittype {
-            IndustryUnitType::FuelRefinery
-            | IndustryUnitType::HullFoundry => {
-                ctype == &CrewMemberType::Operator && self.operator.is_none()
-            },
-        }
+    pub fn need_crew_member(&self, ctype: &CrewMemberType) -> bool {
+        ctype == &CrewMemberType::Operator && self.operator.is_none()
+    }
+
+    pub fn assign_operator(&mut self, opid: CrewId, op: &CrewMember) {
+        self.operator = Some(opid);
+        self.new_op_rank(op.rank);
+    }
+
+    pub fn new_op_rank(&mut self, rank: u8) {
+        self.resources_required = self.input(rank);
+        self.resources_created = self.output(rank);
     }
 
     #[inline]
@@ -100,6 +118,33 @@ impl IndustryUnit {
             (res, amnt.powf(pown))
         })
         .collect()
+    }
+
+    pub fn can_work(&self, tdelta: &f64, resources: &BTreeMap<Resource, f64>) -> bool {
+        if self.operator.is_none() {
+            return false;
+        }
+        self.resources_required
+            .iter()
+            .all(|(res, amnt)| {
+                if let Some(incargo) = resources.get(res) {
+                    incargo >= &(amnt * tdelta)
+                } else {
+                    false
+                }
+            })
+    }
+
+    pub fn work(&self, tdelta: &f64, resources: &mut BTreeMap<Resource, f64>) {
+        for (res, amnt) in self.resources_required.iter() {
+            let n = resources.get_mut(res).unwrap();
+            *n -= amnt * tdelta;
+        }
+
+        for (res, amnt) in self.resources_created.iter() {
+            let n = resources.get_mut(res).unwrap();
+            *n += amnt * tdelta;
+        }
     }
 }
 

@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use mea::rwlock::RwLock;
@@ -6,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::crew::{Crew, CrewId, CrewMember, CrewMemberType};
 use crate::errors::Errcode;
-use crate::industry::IndustryUnit;
+use crate::industry::{IndustryUnit, IndustryUnitId, IndustryUnitType};
 use crate::market::{fee_rate, Market, MarketTx};
 use crate::player::{Player, PlayerId};
 use crate::ship::cargo::ShipCargo;
@@ -48,7 +49,7 @@ pub struct StationPlayerData {
     pub crew: Crew,
     pub trader: Option<CrewId>,
     pub cargo: ShipCargo,
-    pub industry: Vec<IndustryUnit>,
+    pub industry: BTreeMap<IndustryUnitId, IndustryUnit>,
 }
 
 impl StationPlayerData {
@@ -99,6 +100,20 @@ impl Station {
             STATION_INIT_CARGO
         };
         CARGO_BASE_PRICE.powf((cap - STATION_INIT_CARGO) / CARGO_PRICE_INCDIV)
+    }
+
+    pub async fn buy_industry(&self, player: &mut Player, unit: IndustryUnitType) -> Result<(IndustryUnitId, f64), Errcode> {
+        let cost = unit.get_price_buy();
+        if player.money < cost {
+            return Err(Errcode::NotEnoughMoney(player.money, cost));
+        }
+        let pd = self.player_data.clone_val(&player.id).await.unwrap();
+        let mut pd = pd.write().await;
+        let unit = unit.new_unit();
+        let unit_id = unit.id;
+        pd.industry.insert(unit_id, unit);
+        player.money -= cost;
+        Ok((unit_id, cost))
     }
 
     pub async fn buy_cargo(&self, player: &mut Player, amnt: &usize) -> Result<ShipCargo, Errcode> {
@@ -446,11 +461,16 @@ impl Station {
         })
     }
 
-    pub async fn update_crafting(&self, id: &PlayerId) {
+    pub async fn update_crafting(&self, tdelta: f64, id: &PlayerId) {
         let Some(pd) = self.player_data.clone_val(id).await else {
             return;
         };
-        let pd = pd.write().await;
-        // TODO 
+        let mut pd = pd.write().await;
+        let all_industry = pd.industry.clone();
+        for (_, industry) in all_industry.iter() {
+            if industry.can_work(&tdelta, &pd.cargo.resources) {
+                industry.work(&tdelta, &mut pd.cargo.resources);
+            }
+        }
     }
 }

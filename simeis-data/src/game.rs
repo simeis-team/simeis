@@ -151,7 +151,7 @@ impl Game {
             player.update_money(syslog, ITER_PERIOD.as_secs_f64()).await;
 
             for (_, station) in player.stations.iter() {
-                station.update_crafting(&player_id).await;
+                station.update_crafting(ITER_PERIOD.as_secs_f64(), &player_id).await;
             }
 
             let mut deadship = vec![];
