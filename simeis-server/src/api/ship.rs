@@ -36,6 +36,26 @@ async fn get_ship_status(
     build_response(data)
 }
 
+// Compute how much wages cost per second for this ship
+#[web::get("/wages")]
+async fn get_wages_cost(
+    srv: GameState,
+    args: Path<ShipId>,
+    req: HttpRequest,
+) -> impl web::Responder {
+    let ship_id = *args;
+    let pkey = get_player_key!(req);
+
+    let data = srv
+        .map_ship(&pkey, &ship_id, |_, ship| {
+            Box::pin(async move {
+                Ok(json!({ "wages": ship.crew.sum_wages() }))
+            })
+        })
+        .await;
+    build_response(data)
+}
+
 // Compute how much will cost a travel to a specific position (X, Y, Z)
 #[web::get("/travelcost/{x}/{y}/{z}")]
 async fn compute_travel_costs(
@@ -173,6 +193,7 @@ pub fn configure<T: IntoPattern>(base: T, srv: &mut ServiceConfig) {
     srv.service(
         scope(base)
             .service(compute_travel_costs)
+            .service(get_wages_cost)
             .service(get_ship_status)
             .service(ask_navigate)
             .service(stop_navigation)

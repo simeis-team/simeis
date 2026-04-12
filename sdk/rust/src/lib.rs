@@ -5,6 +5,34 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
 
+// From the market transaction, returns:
+// - How much money we spent
+// - How much resource we bought
+pub fn tx_buy(tx: &Value) -> (f64, f64) {
+    let got = json_get_float("removed_money", &tx).unwrap();
+    let amnt = json_get_list("added_cargo", &tx)
+        .unwrap()
+        .get(1)
+        .unwrap()
+        .as_f64()
+        .unwrap();
+    (got, amnt)
+}
+
+// From the market transaction, returns:
+// - How much money we gained
+// - How much resource we sold
+pub fn tx_sell(tx: &Value) -> (f64, f64) {
+    let got = json_get_float("added_money", &tx).unwrap();
+    let amnt = json_get_list("removed_cargo", &tx)
+        .unwrap()
+        .get(1)
+        .unwrap()
+        .as_f64()
+        .unwrap();
+    (got, amnt)
+}
+
 pub fn get_id(data: &Value) -> u64 {
     json_get_uint("id", data).unwrap()
 }
@@ -479,5 +507,10 @@ impl SimeisSDK {
             ));
         }
         Ok(result)
+    }
+
+    pub fn get_ship_wages_cost(&self, ship_id: u64) -> Result<f64, Value> {
+        let got = self.get(format!("/ship/{ship_id}/wages"))?;
+        Ok(json_get_float("wages", &got).unwrap())
     }
 }
