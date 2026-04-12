@@ -471,9 +471,9 @@ impl SimeisSDK {
         let mut result = HashMap::new();
         for (res, val) in got.as_object().unwrap() {
             let volume = json_get_float("volume", val).unwrap();
-            let base_price = json_get_float("base_price", val).unwrap();
-            let difficulty = json_get_float("difficulty", val).unwrap();
-            let minrank = json_get_uint("min-rank", val).unwrap();
+            let base_price = json_get_float("base-price", val).unwrap();
+            let difficulty = json_get_float("difficulty", val).or(Some(0.0)).unwrap();
+            let minrank = json_get_uint("min-rank", val).or(Some(0)).unwrap();
             result.insert(res.clone(), (
                 volume, base_price, difficulty, minrank,
             ));
