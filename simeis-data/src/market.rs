@@ -41,9 +41,7 @@ impl Market {
     pub async fn to_json(&self) -> serde_json::Value {
         let mut resources = BTreeMap::new();
         for (res, price) in self.prices.iter() {
-            let tstart = std::time::Instant::now();
             let price = price.read().await;
-            log::debug!("Got price read for {res:?} in {:?}", tstart.elapsed());
             resources.insert(res, *price);
         }
         serde_json::to_value(resources).unwrap()
