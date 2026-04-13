@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::str::FromStr;
 
 use ntex::router::IntoPattern;
 use ntex::web;
@@ -48,14 +49,17 @@ async fn list_buy_industry(
 }
 
 // Buy a new industry unit
-#[web::post("/buy/{indutype}")]
+#[web::post("/buy/{name}")]
 async fn buy_industry(
-    args: Path<(StationId, IndustryUnitType)>,
+    args: Path<(StationId, String)>,
     srv: GameState,
     req: HttpRequest,
 ) -> impl web::Responder {
     let pkey = get_player_key!(req);
     let (station_id, indutype) = args.clone();
+    let Ok(indutype) = IndustryUnitType::from_str(indutype.as_str()) else {
+        return build_response(Err(Errcode::InvalidArgument("industry_type")));
+    };
 
     let data = srv
         .map_player_mut(&pkey, |player| {
@@ -137,13 +141,37 @@ async fn stop_industry(
     build_response(data)
 }
 
+// Shows the production inputs & outputs of a particular unit
+#[web::get("/production/{id}")]
+async fn show_production(
+    args: Path<(StationId, IndustryUnitId)>,
+    srv: GameState,
+    req: HttpRequest,
+) -> impl web::Responder {
+    let pkey = get_player_key!(req);
+    let (station_id, id) = *args;
+
+    let data = srv.map_station(&pkey, &station_id, |pid, station| {
+        Box::pin(async move {
+            let (inputs, outputs) = station.get_industry_production(pid, id).await?;
+            Ok(json!({
+                "inputs": to_value(inputs).unwrap(),
+                "outputs": to_value(outputs).unwrap(),
+            }))
+        })
+    }).await;
+
+    build_response(data)
+}
+
 pub fn configure<T: IntoPattern>(base: T, srv: &mut ServiceConfig) {
     srv.service(
         scope(base)
             .service(list_buy_industry)
             .service(buy_industry)
             .service(upgrade_industry)
+            .service(show_production)
             .service(start_industry)
-            .service(stop_industry),
+            .service(stop_industry)
     );
 }

@@ -15,6 +15,7 @@ use simeis_data::crew::CrewId;
 use simeis_data::crew::CrewMemberType;
 use simeis_data::errors::Errcode;
 use simeis_data::galaxy::station::StationId;
+use simeis_data::industry::IndustryUnitId;
 use simeis_data::ship::module::ShipModuleId;
 use simeis_data::ship::ShipId;
 
@@ -189,8 +190,8 @@ async fn assign_pilot(
 }
 
 // Assign a crew member as an operator on a ship. The level of the crew member will affect the extraction rate of the resources
-#[web::post("/assign/{crewid}/{shipid}/{modid}")]
-async fn assign_operator(
+#[web::post("/assign/{crewid}/ship/{shipid}/{modid}")]
+async fn assign_operator_to_ship(
     args: Path<(StationId, CrewId, ShipId, ShipModuleId)>,
     srv: GameState,
     req: HttpRequest,
@@ -211,6 +212,28 @@ async fn assign_operator(
     build_response(data)
 }
 
+// Assign a crew member as an operator on an industry unit of a sttion.
+// The level of the crew member will affect the production rate
+#[web::post("/assign/{crewid}/industry/{iid}")]
+async fn assign_operator_to_industry(
+    args: Path<(StationId, CrewId, IndustryUnitId)>,
+    srv: GameState,
+    req: HttpRequest,
+) -> impl web::Responder {
+    let (station_id, crew_id, industry_id) = *args;
+    let pkey = get_player_key!(req);
+
+    let data = srv
+        .map_station(&pkey, &station_id, |pid, station| Box::pin(async move {
+            station
+                .assign_crew_to_industry(pid, &crew_id, &industry_id)
+                .await
+                .map(|_| json!({}))
+        }))
+        .await;
+    build_response(data)
+}
+
 pub fn configure<T: IntoPattern>(base: T, srv: &mut ServiceConfig) {
     srv.service(
         scope(base)
@@ -219,7 +242,8 @@ pub fn configure<T: IntoPattern>(base: T, srv: &mut ServiceConfig) {
             .service(upgrade_ship_crew)
             .service(upgrade_station_crew)
             .service(assign_pilot)
-            .service(assign_operator)
-            .service(assign_trader),
+            .service(assign_operator_to_industry)
+            .service(assign_operator_to_ship)
+            .service(assign_trader)
     );
 }

@@ -244,6 +244,24 @@ impl Station {
         Ok(())
     }
 
+    pub async fn assign_crew_to_industry(&self, pid: &PlayerId, id: &CrewId, iid: &IndustryUnitId) -> Result<(), Errcode> {
+        let cm = self
+            .get_idle_crew(pid, id, CrewMemberType::Operator)
+            .await?;
+        let pd = self.player_data.clone_val(pid).await.unwrap();
+        let mut pd = pd.write().await;
+        let Some(industry) = pd.industry.get_mut(iid) else {
+            return Err(Errcode::NoSuchIndustryUnit);
+        };
+        if !industry.need_crew_member(&cm.member_type) {
+            return Err(Errcode::CrewNotNeeded);
+        }
+        industry.assign_operator(*id, &cm);
+        let cm = pd.idle_crew.0.remove(&id).unwrap();
+        pd.crew.0.insert(*id, cm);
+        Ok(())
+    }
+
     pub async fn get_idle_crew(
         &self,
         pid: &PlayerId,
@@ -524,5 +542,25 @@ impl Station {
                 industry.work(t, &mut pd.cargo.resources);
             }
         }
+    }
+
+    pub async fn get_industry_production(&self, pid: &PlayerId, id: IndustryUnitId) -> Result<(Vec<(Resource, f64)>, Vec<(Resource, f64)>), Errcode> {
+        let Some(pd) = self.player_data.clone_val(pid).await else {
+            return Err(Errcode::NoSuchIndustryUnit);
+        };
+
+        let pd = pd.read().await;
+        let Some(industry) = pd.industry.get(&id) else {
+            return Err(Errcode::NoSuchIndustryUnit);
+        };
+
+        let Some(opid) = industry.operator else {
+            return Ok((vec![], vec![]));
+        };
+        let op = pd.crew.0.get(&opid).unwrap();
+
+        let inputs = industry.input(op.rank);
+        let outputs = industry.output(op.rank);
+        Ok((inputs, outputs))
     }
 }
