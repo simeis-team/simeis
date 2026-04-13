@@ -27,3 +27,6 @@ for path, data in allpaths.items():
 
 with open("swagger.json", "w") as f:
     json.dump(swagger, f, indent=2)
+
+# TODO Generate a full HTML page with the whole swagger-ui + swagger.json data directly in it
+# (No need to serve other web resources)

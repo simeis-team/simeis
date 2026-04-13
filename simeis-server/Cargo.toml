@@ -21,6 +21,7 @@ mea = { workspace = true }
 [features]
 default = []
 testing = ["simeis-data/testing"]
+extraspeed = ["simeis-data/extraspeed"]
 
 [profile.release]
 opt-level = 3

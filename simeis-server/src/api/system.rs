@@ -16,6 +16,8 @@ use simeis_data::ship::resources::Resource;
 use crate::api::build_response;
 use crate::api::GameState;
 
+// TODO     /    Serves the HTML page with the swagger
+
 // Test the connection to the server
 #[web::get("/ping")]
 async fn ping() -> impl web::Responder {
