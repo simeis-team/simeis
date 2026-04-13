@@ -61,8 +61,8 @@ async fn get_station_upgrades(
                 let cargoprice = station.cargo_price(pid).await;
                 let traderprice = station.upgr_trader_price(pid).await;
                 Ok(json!({
-                    "cargo-expansion": cargoprice,
-                    "trader-upgrade": traderprice,
+                    "cargo": cargoprice,
+                    "trader": traderprice,
                 }))
             })
         })

@@ -21,7 +21,7 @@ use crate::api::build_response;
 use crate::api::GameState;
 
 // Buy a new industry unit
-#[web::get("/buy/list")]
+#[web::get("/buy")]
 async fn list_buy_industry(
     args: Path<StationId>,
     srv: GameState,
