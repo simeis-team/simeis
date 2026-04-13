@@ -17,14 +17,15 @@
       runtimeInputs = deps ++ [ python ];
       text = ''
         export CARGO_HOME=$PWD/.cargohome
-        mkdir -p target
-        cargo build --target-dir ./target/functests/ --features testing
+        mkdir -p $PWD/target/functests
+        cargo build --target-dir $PWD/target/functests/ --features testing
         rm -f /tmp/simeis_logs
         ./target/functests/debug/simeis-server 1>/tmp/simeis_logs 2>&1 &
         sleep 5
 
         if [ -z "$(jobs -r)" ]; then
           echo "!!! Failed to start the server";
+          cat /tmp/simeis_logs
           exit 1;
         fi
 
