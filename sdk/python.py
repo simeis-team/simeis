@@ -116,7 +116,7 @@ class SimeisSDK:
         return self.post(f"/station/{sta}/crew/hire/{crewtype.lower()}")
 
     def assign_crew_to_ship(self, sta, shipid, operator_id, role):
-        return self.post(f"/station/{sta}/crew/assign/{operator_id}/{shipid}/{role}")
+        return self.post(f"/station/{sta}/crew/assign/{operator_id}/ship/{shipid}/{role}")
 
     def station_has_trader(self, sta):
         station = self.get(f"/station/{sta}")

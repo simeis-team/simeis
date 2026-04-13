@@ -9,8 +9,8 @@ use std::time::Duration;
 // - How much money we spent
 // - How much resource we bought
 pub fn tx_buy(tx: &Value) -> (f64, f64) {
-    let got = json_get_float("removed_money", &tx).unwrap();
-    let amnt = json_get_list("added_cargo", &tx)
+    let got = json_get_float("removed_money", tx).unwrap();
+    let amnt = json_get_list("added_cargo", tx)
         .unwrap()
         .get(1)
         .unwrap()
@@ -23,8 +23,8 @@ pub fn tx_buy(tx: &Value) -> (f64, f64) {
 // - How much money we gained
 // - How much resource we sold
 pub fn tx_sell(tx: &Value) -> (f64, f64) {
-    let got = json_get_float("added_money", &tx).unwrap();
-    let amnt = json_get_list("removed_cargo", &tx)
+    let got = json_get_float("added_money", tx).unwrap();
+    let amnt = json_get_list("removed_cargo", tx)
         .unwrap()
         .get(1)
         .unwrap()
@@ -129,7 +129,7 @@ impl SimeisSDK {
             if let Some(ref key) = self.player_key {
                 req = req.header("Simeis-Key", key);
             }
-            req.send(&[0u8;0])
+            req.send(&[0u8; 0])
         };
         let mut got = got.map_err(|err| {
             serde_json::json!({
@@ -244,6 +244,10 @@ impl SimeisSDK {
         Ok(allvec)
     }
 
+    pub fn list_station_upgrades(&self, station_id: u64) -> ApiResult {
+        self.get(format!("/station/{station_id}/upgrades"))
+    }
+
     pub fn buy_ship(&self, station_id: u64, ship_id: u64) -> ApiResult {
         self.post(format!("/station/{station_id}/shipyard/buy/{ship_id}"))
     }
@@ -270,7 +274,7 @@ impl SimeisSDK {
         mod_id: u64,
     ) -> ApiResult {
         self.post(format!(
-            "/station/{station_id}/crew/assign/{crew_id}/{ship_id}/{mod_id}"
+            "/station/{station_id}/crew/assign/{crew_id}/ship/{ship_id}/{mod_id}"
         ))
     }
 
@@ -494,17 +498,16 @@ impl SimeisSDK {
         self.get("/syslogs")
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn get_resources_info(&self) -> Result<HashMap<String, (f64, f64, f64, u64)>, Value> {
         let got = self.get("/resources")?;
         let mut result = HashMap::new();
         for (res, val) in got.as_object().unwrap() {
             let volume = json_get_float("volume", val).unwrap();
             let base_price = json_get_float("base-price", val).unwrap();
-            let difficulty = json_get_float("difficulty", val).or(Some(0.0)).unwrap();
-            let minrank = json_get_uint("min-rank", val).or(Some(0)).unwrap();
-            result.insert(res.clone(), (
-                volume, base_price, difficulty, minrank,
-            ));
+            let difficulty = json_get_float("difficulty", val).unwrap_or(0.0);
+            let minrank = json_get_uint("min-rank", val).unwrap_or(0);
+            result.insert(res.clone(), (volume, base_price, difficulty, minrank));
         }
         Ok(result)
     }
@@ -512,5 +515,9 @@ impl SimeisSDK {
     pub fn get_ship_wages_cost(&self, ship_id: u64) -> Result<f64, Value> {
         let got = self.get(format!("/ship/{ship_id}/wages"))?;
         Ok(json_get_float("wages", &got).unwrap())
+    }
+
+    pub fn upgrade_station_crew(&self, station_id: u64, crew_id: u64) -> ApiResult {
+        self.post(format!("/station/{station_id}/crew/upgrade/{crew_id}"))
     }
 }
