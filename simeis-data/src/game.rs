@@ -63,7 +63,10 @@ pub struct Game {
 }
 
 impl Game {
-    pub async fn init() -> (std::thread::JoinHandle<()>, Game) {
+    pub async fn init<F>(handle_thread: F) -> (std::thread::JoinHandle<()>, Game)
+    where
+        F: FnOnce(BoundedReceiver<GameSignal>, SyslogRecv, Game) -> std::thread::JoinHandle<()>,
+    {
         let (send_stop, recv_stop) = mea::mpsc::bounded(5);
         let (syssend, sysrecv) = SyslogSend::channel();
         let tstart = std::time::SystemTime::now()
@@ -86,12 +89,7 @@ impl Game {
         };
 
         let thread_data = data.clone();
-        let thread = std::thread::spawn(move || {
-            let rt = compio::runtime::Runtime::new().unwrap();
-            rt.block_on(thread_data.start(recv_stop, sysrecv));
-            rt.run();
-        });
-        // TODO (#34) Reduce stack size from this task, > 1024
+        let thread = handle_thread(recv_stop, sysrecv, thread_data);
         (thread, data)
     }
 

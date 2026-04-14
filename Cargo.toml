@@ -11,5 +11,4 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 strum = { version = "0.28.0", features = ["derive"] }
 base64 = "0.22.1"
-compio = "*"
 mea = "0.6.3"
