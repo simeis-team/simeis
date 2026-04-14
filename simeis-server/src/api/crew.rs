@@ -149,7 +149,7 @@ async fn upgrade_station_crew(
 // @summary Assign a crew member as a trader on a station.
 // @returns Nothing
 // The level of the trader will affect the fee rate applied on the market
-#[web::post("/assign/{crewid}/trading")]
+#[web::post("/assign/{crew_id}/trading")]
 async fn assign_trader(
     args: Path<(StationId, CrewId)>,
     srv: GameState,
@@ -172,7 +172,7 @@ async fn assign_trader(
 // @summary Assign a crew member as a pilot on a ship.
 // @returns Nothing
 // The level of the pilot will affect the speed of the ship, as well as it's fuel consumption
-#[web::post("/assign/{crewid}/ship/{shipid}/pilot")]
+#[web::post("/assign/{crew_id}/ship/{ship_id}/pilot")]
 async fn assign_pilot(
     args: Path<(StationId, CrewId, ShipId)>,
     srv: GameState,
@@ -200,7 +200,7 @@ async fn assign_pilot(
 // @summary Assign a crew member as an operator on a ship.
 // @returns Nothing
 // The level of the crew member will affect the extraction rate of the resources
-#[web::post("/assign/{crewid}/ship/{shipid}/{modid}")]
+#[web::post("/assign/{crew_id}/ship/{ship_id}/{mod_id}")]
 async fn assign_operator_to_ship(
     args: Path<(StationId, CrewId, ShipId, ShipModuleId)>,
     srv: GameState,
@@ -225,7 +225,7 @@ async fn assign_operator_to_ship(
 // @summary Assign a crew member as an operator on an industry unit of a sttion.
 // @returns Nothing
 // The level of the crew member will affect the production rate
-#[web::post("/assign/{crewid}/industry/{iid}")]
+#[web::post("/assign/{crew_id}/industry/{industry_id}")]
 async fn assign_operator_to_industry(
     args: Path<(StationId, CrewId, IndustryUnitId)>,
     srv: GameState,

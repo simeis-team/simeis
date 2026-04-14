@@ -185,7 +185,7 @@ async fn unload_all_ship_cargo(
 // @summary Unload a specific amount of a specific resource on the station's storage
 // @returns How much of this resource was effectively unloaded from the ship
 // Depending on the cargo space available on the station, may not unload anything
-#[web::post("/unload/{station_id}/{resource}/{amount}")]
+#[web::post("/unload/{station_id}/{resource}/{amnt}")]
 async fn unload_ship_cargo(
     srv: GameState,
     args: Path<(ShipId, StationId, String, f64)>,

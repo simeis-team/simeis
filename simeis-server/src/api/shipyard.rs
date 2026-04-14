@@ -55,7 +55,7 @@ async fn list_shipyard_ships(
 
 // @summary Buy a ship from the station's shop
 // @returns The ID of the ship you just bought
-#[web::post("/buy/{id}")]
+#[web::post("/buy/{ship_id}")]
 async fn shipyard_buy_ship(
     srv: GameState,
     args: Path<(StationId, ShipId)>,

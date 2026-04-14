@@ -79,7 +79,7 @@ async fn buy_industry(
 
 // @summary Upgrade an industry unit
 // @returns The new rank of the industry unit
-#[web::post("/upgrade/{id}")]
+#[web::post("/upgrade/{industry_id}")]
 async fn upgrade_industry(
     args: Path<(StationId, IndustryUnitId)>,
     srv: GameState,
@@ -105,7 +105,7 @@ async fn upgrade_industry(
 // @summary Start an industry unit
 // @returns Nothing
 // Unless started, an industry unit will NOT produce anything
-#[web::post("/start/{id}")]
+#[web::post("/start/{industry_id}")]
 async fn start_industry(
     args: Path<(StationId, IndustryUnitId)>,
     srv: GameState,
@@ -127,7 +127,7 @@ async fn start_industry(
 
 // @summary Stop an industry unit
 // @returns Nothing
-#[web::post("/stop/{id}")]
+#[web::post("/stop/{industry_id}")]
 async fn stop_industry(
     args: Path<(StationId, IndustryUnitId)>,
     srv: GameState,
@@ -149,7 +149,7 @@ async fn stop_industry(
 
 // @summary Shows the production inputs & outputs of a particular unit
 // @returns The resources needed in input of the unit, and the one produced in the output
-#[web::get("/production/{id}")]
+#[web::get("/production/{industry_id}")]
 async fn show_production(
     args: Path<(StationId, IndustryUnitId)>,
     srv: GameState,

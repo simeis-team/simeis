@@ -109,7 +109,7 @@ async fn get_ship_module_upgrade_prices(
 // @summary Buy an upgrade for a module installed on a ship
 // @returns The new rank of the module, and the cost of the upgrade
 // The level of a module will affect the extraction rate for a resource, as well as what kind of resources it kind mine.
-#[web::post("/modules/{ship_id}/upgrade/{modid}")]
+#[web::post("/modules/{ship_id}/upgrade/{mod_id}")]
 async fn buy_ship_module_upgrade(
     srv: GameState,
     args: Path<(StationId, ShipId, ShipModuleId)>,

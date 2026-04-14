@@ -75,6 +75,7 @@ class ApiChecker:
         self.port = port
         self.root = root
         self.examples = {}
+        self.path_params = {}
         version = get_version(os.path.join(root, "../Cargo.toml"))
         with open(os.path.join(root, "main.rs"), "r") as f:
             main = f.read().split("\n")
@@ -99,7 +100,9 @@ class ApiChecker:
             headers["Simeis-Key"] = str(self.key)
         url = f"http://{self.host}:{self.port}/{path}"
         got = requests.get(url, headers=headers, timeout=timeout)
-        assert got.status_code == 200
+        if got.status_code != 200:
+            print("Got a status code", got.status_code, "on GET", path)
+            sys.exit(1)
         return json.loads(got.text)
 
     def post(self, path, timeout=5):
@@ -108,8 +111,37 @@ class ApiChecker:
             headers["Simeis-Key"] = str(self.key)
         url = f"http://{self.host}:{self.port}/{path}"
         got = requests.post(url, headers=headers, timeout=timeout)
-        assert got.status_code == 200
+        if got.status_code != 200:
+            print("Got a status code", got.status_code, "on POST", path)
+            sys.exit(1)
         return json.loads(got.text)
+
+    def get_example(self, method, path, params):
+        method=method.upper()
+        exkey = f"{method}:{path}"
+        if exkey in self.examples:
+            print("Pre-registered example")
+            return self.examples[exkey]
+        for param in params:
+            if param not in self.path_params:
+                print(f"URL parameter {param} of path {path} is not prepared")
+                sys.exit(1)
+            value = self.path_params[param]
+            path = path.replace("{" + param + "}", str(value))
+        if "{" in path:
+            print(f"Path expansion is missing for {exkey}: {path}")
+            sys.exit(1)
+        if method.upper() == "GET":
+            data = self.get(path)
+        elif method.upper() == "POST":
+            data =  self.post(path)
+        else:
+            print("unsupported method", method.upper(), "in examples fetching")
+            sys.exit(1)
+        if data["error"] != "ok":
+            print(f"Error in example for {method}:{path}:", data["error"])
+            sys.exit(1)
+        return data
 
     def crawl(self):
         with open(os.path.join(self.root, "api.rs"), "r") as f:
@@ -150,11 +182,17 @@ class ApiChecker:
             name = code[nline+1].split("(")[0].split(" ")[-1]
             print("Found {} {} API {} at line {}".format(method.upper(), path, name, nline))
             check_all_metadata(f"{method.upper()}:{name}", mdata)
+            example = self.get_example(method, path, all_params)
             data = {
                 "description": doc,
                 "responses": {
                     "200": {
                         "description": mdata.pop("returns"),
+                        "content": {
+                            "application/json": {
+                                "example": example,
+                            },
+                        },
                     },
                 },
                 "tags": [ tag ],
@@ -167,7 +205,6 @@ class ApiChecker:
             data.update(mdata)
             self.swagger["paths"][path] = { method: data }
             code = code[nline+1:]
-            # TODO Call API to get an example
 
     def check_rust_sdk(self):
         pass
@@ -203,10 +240,104 @@ class ApiChecker:
         with open(outfile, "w") as f:
             json.dump(self.swagger, f, indent=2)
 
+    def prepare_path(self, path, method=None, show=True, **params):
+        method=method.upper()
+        exkey = f"{method}:{path}"
+        self.path_params.update(params)
+        for (key, val) in self.path_params.items():
+            if "{" + key + "}" not in path:
+                continue
+            path = path.replace("{" + key + "}", str(val))
+        if "{" in path:
+            print(f"Missing path expansion for example preparation of {exkey}: {path}")
+            sys.exit(1)
+        if method == "GET":
+            data = self.get(path)
+        else:
+            data = self.post(path)
+        if data["error"] != "ok":
+            print(f"Preparation of path {exkey} raised an error:", data["error"])
+            sys.exit(1)
+        self.examples[exkey] = data
+        if show:
+            print(data)
+        return data
+
+    def prepare_post(self, path, **kwargs):
+        return self.prepare_path(path, method="POST", **kwargs)
+
+    def prepare_get(self, path, **kwargs):
+        return self.prepare_path(path, method="GET", **kwargs)
+
+    def tick_for_event(self, want):
+        while True:
+            self.post("/tick")
+            logs = self.prepare_get("/syslogs", show=False)
+            for ev in logs["events"]:
+                print(want, ev)
+                if ev["type"].startswith(want):
+                    print("Reached event", want)
+                    return
+
     def prepare_examples(self):
-        # TODO Prepare a game so I can make actions later
-        # TODO Add some of the data got from API to self.examples
-        pass
+        data = self.prepare_post("/player/new/{name}", name="test-rich-swagger")
+        self.key = data["key"]
+        pid = data["playerId"]
+        player = self.prepare_get("/player/{player_id}", player_id=pid)
+        station = self.prepare_get("/station/{station_id}", station_id=player["stations"][0])
+
+        trader = self.prepare_post("/station/{station_id}/crew/hire/{crewtype}", crewtype="trader")
+        self.prepare_post("/station/{station_id}/crew/assign/{crew_id}/trading", crew_id=trader["id"])
+        self.prepare_post("/station/{station_id}/crew/upgrade/{crew_id}")
+        self.prepare_post("/market/{station_id}/buy/{resource}/{amnt}", resource="Fuel", amnt=100)
+        self.prepare_post("/market/{station_id}/buy/{resource}/{amnt}", resource="Hull", amnt=100)
+
+        industry = self.prepare_post("/station/{station_id}/industry/buy/{name}", name="simplefuelrefinery")
+        operator = self.prepare_post("/station/{station_id}/crew/hire/{crewtype}", crewtype="operator")
+        self.prepare_post("/station/{station_id}/crew/assign/{crew_id}/industry/{industry_id}", crew_id=operator["id"], industry_id=industry["id"])
+
+        planets = self.prepare_post("/station/{station_id}/scan")
+        target = planets["planets"][0]["position"]
+
+        allships = self.prepare_get("/station/{station_id}/shipyard/list")
+        fship = allships["ships"][0]["id"]
+        ship = self.prepare_post("/station/{station_id}/shipyard/buy/{ship_id}", ship_id=fship)
+        self.prepare_post("/station/{station_id}/shipyard/upgrade/{ship_id}/{upgrade_type}", upgrade_type="reactorupgrade")
+        self.prepare_post("/station/{station_id}/shop/cargo/buy/{amount}", amount=1)
+        pilot = self.prepare_post("/station/{station_id}/crew/hire/{crewtype}", crewtype="pilot")
+        self.prepare_post("/station/{station_id}/crew/assign/{crew_id}/ship/{ship_id}/pilot", crew_id=pilot["id"])
+        if planets["planets"][0]["solid"]:
+            mod_type = "Miner"
+            resource = "Carbon"
+        else:
+            mod_type = "GasSucker"
+            resource = "Hydrogen"
+        module = self.prepare_post("/station/{station_id}/shop/modules/{ship_id}/buy/{modtype}", modtype=mod_type)
+        operator = self.prepare_post("/station/{station_id}/crew/hire/{crewtype}", crewtype="operator")
+        self.prepare_post("/station/{station_id}/crew/assign/{crew_id}/ship/{ship_id}/{mod_id}", crew_id=operator["id"], mod_id=module["id"])
+
+        self.prepare_get("/ship/{ship_id}/travelcost/{x}/{y}/{z}",
+             x=target[0],
+             y=target[1],
+             z=target[2],
+         )
+        cost = self.prepare_post("/ship/{ship_id}/navigate/{x}/{y}/{z}")
+        self.tick_for_event("ShipFlightFinished")
+        rate = self.prepare_post("/ship/{ship_id}/extraction/start")
+        tfilled = rate["time_fill_cargo"] / 2.0
+        for _ in range(int(tfilled / (20.0 / 1000.0))):
+            self.post("/tick")
+        rate = self.prepare_post("/ship/{ship_id}/extraction/stop")
+        cost = self.prepare_post("/ship/{ship_id}/navigate/{x}/{y}/{z}",
+             x=station["position"][0],
+             y=station["position"][1],
+             z=station["position"][2],
+        )
+        self.tick_for_event("ShipFlightFinished")
+        self.prepare_post("/ship/{ship_id}/unload/{station_id}/{resource}/{amnt}", resource=resource, amnt=1)
+
+        pl = self.prepare_post("/player/new/{name}", name="xX_GigaProf_Xx")
+        self.prepare_get("/player/{player_id}", player_id=pl["playerId"])
 
 ip = sys.argv[1]
 port = sys.argv[2]

@@ -30,7 +30,7 @@ async fn new_player(srv: GameState, name: Path<String>) -> impl web::Responder {
 
 // @summary Get the status from the player of a given id.
 // @returns Information about the player, complete if it's you, minimal if it's another player
-#[web::get("/{id}")]
+#[web::get("/{player_id}")]
 async fn get_player(srv: GameState, id: Path<PlayerId>, req: HttpRequest) -> impl web::Responder {
     let pkey = get_player_key!(req);
     let id = id.as_ref();
