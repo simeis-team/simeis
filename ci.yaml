@@ -1,0 +1,39 @@
+name: Simeis CI
+
+# Déclenchement du workflow sur les Pull Requests
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Étape obligatoire pour copier le code sur le serveur GitHub [cite: 6]
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Installation de Rust (nécessaire pour que cargo/make fonctionne)
+      - name: Install Rust
+        run: rustup update stable
+
+      # Installation de Typst (nécessaire pour la doc)
+      - name: Install Typst
+        run: sudo apt-get update && sudo apt-get install -y typst
+
+      # Cas 1 : Si on merge/push sur main (mode Release + Doc) 
+      - name: Build Release and Doc (Main only)
+        if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+        run: |
+          make build
+          make doc
+
+      # Cas 2 : Tous les autres cas (Développement) 
+      - name: Development Checks and Tests
+        if: github.ref != 'refs/heads/main' && github.base_ref != 'main'
+        run: |
+          make check
+          make test
