@@ -1,68 +1,39 @@
-# --- CONFIGURATION DES FLAGS --- [cite: 15, 16]
-# On détecte l'architecture pour permettre le build local sur Mac (AArch64)
-# tout en respectant les consignes du TP pour l'environnement final.
-ARCH := $(shell uname -m)
+# --- CONFIGURATION DES FLAGS ---
+# On applique les flags directement selon l'architecture
+export RUSTFLAGS = $(shell if [ `uname -m` = "x86_64" ]; then echo "-C codegen-units=1 -C code-model=kernel"; else echo "-C codegen-units=1"; fi)
 
-# Flags de base imposés par le sujet [cite: 17, 18]
-BASE_RUSTFLAGS = -C codegen-units=1
+# --- CIBLES ---
 
-# Ajout du code-model=kernel seulement si on n'est pas sur ARM (Mac M1/M2) [cite: 17]
-ifeq ($(ARCH), x86_64)
-    export RUSTFLAGS = $(BASE_RUSTFLAGS) -C code-model=kernel
-else
-    # Sur Mac, on garde BASE_RUSTFLAGS pour que ça compile, 
-    # mais la CI utilisera le modèle kernel sur les serveurs Linux.
-    export RUSTFLAGS = $(BASE_RUSTFLAGS)
-endif
-
-# --- VARIABLES ---
-BINARY_NAME = simeis
-BINARY_PATH = target/debug/$(BINARY_NAME)
-RELEASE_PATH = target/release/$(BINARY_NAME)
-MANUAL_SRC = manuel.typ
-MANUAL_OUT = manuel.pdf
-
-# --- CIBLES PRINCIPALES ---
-
-# Cible par défaut : construit et optimise [cite: 13, 20]
 all: build optimize
 
-# 1. Utiliser Make pour construire avec cargo en mode verbeux [cite: 13, 19]
+# Build standard (Développement)
 build:
 	cargo build --verbose
 
-# 2. Compilation mode release (utilisée par la CI) 
+# Build de production (utilisé par la CI lors du merge sur main)
 release:
 	cargo build --release --verbose
-	strip $(RELEASE_PATH)
+	strip target/release/simeis
 
-# 3. Optimisation de la taille via strip 
+# Optimisation du binaire de debug
 optimize:
-	@if [ -f $(BINARY_PATH) ]; then \
-		strip $(BINARY_PATH); \
-		echo "Optimisation terminée pour $(BINARY_PATH)"; \
-	else \
-		echo "Erreur : Binaire non trouvé. Lancez 'make build' d'abord."; \
-	fi
+	strip target/debug/simeis
 
-# --- AUTRES CIBLES [cite: 21] ---
-
-# Construire le manuel avec typst 
+# Compilation de la documentation Typst
 doc:
-	typst compile $(MANUAL_SRC) $(MANUAL_OUT)
+	typst compile manuel.typ manuel.pdf
 
-# Check du code (statique) [cite: 23]
+# Vérification statique
 check:
 	cargo check
 
-# Lancer les tests unitaires [cite: 24]
+# Tests unitaires
 test:
 	cargo test
 
-# Nettoyer l'environnement [cite: 25]
+# Nettoyage
 clean:
 	cargo clean
-	rm -f $(MANUAL_OUT)
+	rm -f manuel.pdf
 
-# Évite les conflits avec des fichiers de même nom
 .PHONY: all build release optimize doc check test clean
