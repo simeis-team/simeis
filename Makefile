@@ -1,33 +1,31 @@
-# --- CONFIGURATION DES FLAGS ---
-# On applique les flags directement selon l'architecture
-export RUSTFLAGS = $(shell if [ `uname -m` = "x86_64" ]; then echo "-C codegen-units=1 -C code-model=kernel"; else echo "-C codegen-units=1"; fi)
+# --- CONFIGURATION DIRECTE ---
+export RUSTFLAGS = -C codegen-units=1 -C code-model=kernel
 
 # --- CIBLES ---
 
 all: build optimize
 
-# Build standard (Développement)
+# Build standard
 build:
 	cargo build --verbose
 
-# Build de production (utilisé par la CI lors du merge sur main)
+# Build de production (utilisé par la CI)
 release:
 	cargo build --release --verbose
 	strip target/release/simeis
 
-# Optimisation du binaire de debug
+# Optimisation
 optimize:
 	strip target/debug/simeis
 
-# Compilation de la documentation Typst
+# Documentation
 doc:
 	typst compile manuel.typ manuel.pdf
 
-# Vérification statique
+# Checks
 check:
 	cargo check
 
-# Tests unitaires
 test:
 	cargo test
 
