@@ -42,14 +42,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Installer Typst (pour la doc)
-        run: sudo apt-get update && sudo apt-get install -y typst
+
+      # Remplace le bloc sudo apt-get par celui-ci :
+      - name: Setup Typst
+        uses: chataigne/setup-typst@v1
+        with:
+          typst-version: 'latest'
 
       - name: Compilation Release
-        # On utilise la cible release du Makefile qui contient 'cargo build --release' et 'strip'
         run: make release
 
       - name: Compilation Documentation
-        # On compile le manuel.typ avec typst via le Makefile
         run: make doc
