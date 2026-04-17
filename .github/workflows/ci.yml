@@ -43,11 +43,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Remplace le bloc sudo apt-get par celui-ci :
-      - name: Setup Typst
-        uses: chataigne/setup-typst@v1
-        with:
-          typst-version: 'latest'
+      - name: Install Typst (Direct Download)
+        run: |
+          # Télécharge le binaire pour Linux x86_64
+          wget https://github.com/typst/typst/releases/latest/download/typst-x86_64-unknown-linux-musl.tar.xz
+          tar -xvf typst-x86_64-unknown-linux-musl.tar.xz
+          # Déplace le binaire dans le PATH pour que 'make doc' le trouve
+          sudo cp typst-x86_64-unknown-linux-musl/typst /usr/local/bin/
 
       - name: Compilation Release
         run: make release
