@@ -1,0 +1,53 @@
+name: DIY Dependabot
+
+on:
+  schedule:
+    # Déclenchement cyclique : Tous les lundis à minuit (UTC)
+    - cron: '0 0 * * 1'
+  workflow_dispatch: # Permet de lancer le bot manuellement pour tester
+
+jobs:
+  update-dependencies:
+    runs-on: ubuntu-latest
+    # Contrainte : Ne s'exécute que sur la branche main
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install cargo-update
+        run: cargo install cargo-update
+
+      - name: Update Cargo.lock
+        run: cargo update
+
+      - name: Handle Pull Request
+        id: pr_logic
+        run: |
+          # On vérifie si le fichier Cargo.lock a été modifié
+          if [[ -n $(git status --porcelain Cargo.lock) ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            
+            # Création/Mise à jour de la branche dédiée
+            git checkout -b bot/update-deps
+            git add Cargo.lock
+            git commit -m "chore: update dependencies"
+            
+            # Le push --force permet de mettre à jour la PR existante si elle existe déjà
+            git push origin bot/update-deps --force
+
+            # Utilisation de l'outil 'gh' (GitHub CLI) pour gérer la PR
+            # --label ajoute le label bot/update
+            gh pr create \
+              --title "Update dependencies" \
+              --body "Mise à jour automatique des dépendances Rust via cargo-update." \
+              --label "bot/update" \
+              --base main \
+              --head bot/update-deps || echo "La PR existe déjà, elle a été mise à jour par le push --force."
+          else
+            echo "Aucune mise à jour disponible."
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
